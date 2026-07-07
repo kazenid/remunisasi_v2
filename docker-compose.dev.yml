@@ -1,0 +1,56 @@
+services:
+  # ─── Application (PHP + Vite Dev Server inline) ────────────────────────
+  app:
+    image: php:8.3-fpm-alpine
+    container_name: sakai_app_dev
+    working_dir: /var/www
+    volumes:
+      - .:/var/www
+    ports:
+      - "9000:9000"
+    networks:
+      - sakai_network
+    command: php-fpm
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: sakai_nginx_dev
+    ports:
+      - "8000:80"
+    volumes:
+      - .:/var/www
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - sakai_network
+    depends_on:
+      - app
+
+  mysql:
+    image: mysql:8.0
+    container_name: sakai_mysql_dev
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: sakai_laravel
+      MYSQL_USER: sakai
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: rootsecret
+    volumes:
+      - sakai_mysql_dev_data:/var/lib/mysql
+    networks:
+      - sakai_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: sakai_redis_dev
+    ports:
+      - "6379:6379"
+    networks:
+      - sakai_network
+
+volumes:
+  sakai_mysql_dev_data:
+
+networks:
+  sakai_network:
+    driver: bridge
