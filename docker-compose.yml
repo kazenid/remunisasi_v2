@@ -13,7 +13,7 @@ services:
     networks:
       - sakai_network
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -36,24 +36,24 @@ services:
     depends_on:
       - app
 
-  # ─── Database (MySQL) ─────────────────────────────────────────────────
-  mysql:
-    image: mysql:8.0
-    container_name: sakai_mysql
+  # ─── Database (PostgreSQL) ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: sakai_postgres
     restart: unless-stopped
     ports:
-      - "${DB_PORT:-3306}:3306"
+      - "${DB_PORT:-5432}:5432"
     environment:
-      MYSQL_DATABASE: ${DB_DATABASE:-sakai_laravel}
-      MYSQL_USER: ${DB_USERNAME:-sakai}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootsecret}
+      POSTGRES_DB: ${DB_DATABASE:-sakai_laravel}
+      POSTGRES_USER: ${DB_USERNAME:-sakai}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+      POSTGRES_HOST_AUTH_METHOD: md5
     volumes:
-      - sakai_mysql_data:/var/lib/mysql
+      - sakai_postgres_data:/var/lib/postgresql/data
     networks:
       - sakai_network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-sakai} -d ${DB_DATABASE:-sakai_laravel}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -93,7 +93,7 @@ services:
       - redis
 
 volumes:
-  sakai_mysql_data:
+  sakai_postgres_data:
     driver: local
   sakai_redis_data:
     driver: local

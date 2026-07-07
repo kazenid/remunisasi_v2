@@ -11,6 +11,7 @@
 [![Inertia](https://img.shields.io/badge/Inertia.js-2.x-7C3AED?style=flat-square)](https://inertiajs.com)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-4.x-06B6D4?style=flat-square&logo=tailwindcss)](https://tailwindcss.com)
 [![PrimeVue](https://img.shields.io/badge/PrimeVue-4.x-41B883?style=flat-square)](https://primevue.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql)](https://www.postgresql.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE.md)
 
 </div>
@@ -47,6 +48,7 @@
 - 🔐 **Authentication** — Login & Register dengan session Laravel
 - 📦 **CRUD Demo** — Manajemen produk lengkap dengan validasi server
 - 🗂️ **15 UIKit Pages** — Showcase semua komponen PrimeVue
+- 🐘 **PostgreSQL** — Database production-grade dengan performa tinggi
 - 🐳 **Docker Ready** — Konfigurasi siap pakai untuk dev & production
 - 🦭 **Podman Compatible** — Alternatif Docker tanpa daemon
 
@@ -63,6 +65,8 @@
 | **PrimeVue** | 4.x | UI component library lengkap |
 | **Vite** | 5.x | Build tool super cepat |
 | **Ziggy** | 2.x | Named routes Laravel di JavaScript |
+| **PostgreSQL** | 16 | Database relasional production-grade |
+| **Redis** | 7 | Cache & queue driver |
 
 ---
 
@@ -131,10 +135,10 @@ sakai-laravel/
 │   ├── nginx/
 │   │   └── default.conf            # Nginx config
 │   └── php/
-│       ├── Dockerfile              # PHP 8.3 FPM Alpine
+│       ├── Dockerfile              # PHP 8.3 FPM Alpine + pdo_pgsql
 │       └── php-fpm.conf
 │
-├── docker-compose.yml              # Production (app + nginx + mysql + redis)
+├── docker-compose.yml              # Production (app + nginx + postgres + redis)
 ├── docker-compose.dev.yml          # Development (lebih ringan)
 └── vite.config.js                  # Vite + TailwindCSS + PrimeVue
 ```
@@ -145,16 +149,17 @@ sakai-laravel/
 
 ### Untuk Local Development
 | Software | Versi Minimum |
-|----------|--------------|
+|----------|--------------| 
 | PHP | 8.2+ |
 | Composer | 2.x |
 | Node.js | 18+ |
 | npm | 9+ |
-| Database | SQLite (default), MySQL 8.0, atau PostgreSQL |
+| Database | PostgreSQL 14+ |
+| PHP Extension | `pdo_pgsql`, `pgsql` |
 
 ### Untuk Docker / Podman
 | Software | Platform |
-|----------|---------|
+|----------|---------| 
 | Docker Desktop | Windows, Mac, Linux |
 | Docker Engine | Linux |
 | Podman Desktop | Windows, Mac |
@@ -184,22 +189,30 @@ cp .env.example .env
 php artisan key:generate
 ```
 
-### 4. Setup database
+### 4. Setup database PostgreSQL
 
-**Opsi A — SQLite (paling cepat, tanpa install database):**
+Pastikan PostgreSQL sudah terinstall dan berjalan, lalu buat database:
+
 ```bash
-touch database/database.sqlite
-# Pastikan .env berisi: DB_CONNECTION=sqlite
+# Masuk ke PostgreSQL
+psql -U postgres
+
+# Buat user dan database
+CREATE USER sakai WITH PASSWORD 'secret';
+CREATE DATABASE sakai_laravel OWNER sakai;
+GRANT ALL PRIVILEGES ON DATABASE sakai_laravel TO sakai;
+\q
 ```
 
-**Opsi B — MySQL:**
-```bash
-# Edit .env:
-# DB_CONNECTION=mysql
-# DB_HOST=127.0.0.1
-# DB_DATABASE=sakai_laravel
-# DB_USERNAME=root
-# DB_PASSWORD=yourpassword
+Pastikan `.env` berisi konfigurasi berikut:
+
+```env
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=sakai_laravel
+DB_USERNAME=sakai
+DB_PASSWORD=secret
 ```
 
 ### 5. Jalankan migrasi dan seeder
@@ -244,16 +257,15 @@ APP_DEBUG=false
 # URL aplikasi (sesuaikan dengan domain/port)
 APP_URL=http://localhost:8000
 
-# Database — pilih salah satu
-DB_CONNECTION=sqlite
-# atau
-DB_CONNECTION=mysql
-DB_HOST=mysql          # Gunakan nama service jika pakai Docker
+# Database PostgreSQL
+DB_CONNECTION=pgsql
+DB_HOST=postgres      # Gunakan nama service jika pakai Docker
+DB_PORT=5432
 DB_DATABASE=sakai_laravel
 DB_USERNAME=sakai
 DB_PASSWORD=secret
 
-# Redis (opsional, untuk cache & queue)
+# Redis (untuk cache & queue)
 REDIS_HOST=redis       # Gunakan nama service jika pakai Docker
 ```
 
@@ -277,16 +289,20 @@ cd sakai-laravel
 
 # Salin env dan sesuaikan
 Copy-Item .env.example .env
-
-# Edit .env untuk MySQL (bukan SQLite)
-# DB_CONNECTION=mysql
-# DB_HOST=mysql
-# DB_DATABASE=sakai_laravel
-# DB_USERNAME=sakai
-# DB_PASSWORD=secret
 ```
 
-Edit file `.env`, lalu:
+Edit file `.env`, ubah DB_HOST menjadi `postgres` (nama service Docker):
+
+```env
+DB_CONNECTION=pgsql
+DB_HOST=postgres
+DB_PORT=5432
+DB_DATABASE=sakai_laravel
+DB_USERNAME=sakai
+DB_PASSWORD=secret
+```
+
+Lalu jalankan:
 
 ```powershell
 # Build dan jalankan semua service
@@ -301,9 +317,6 @@ docker compose exec app php artisan key:generate
 
 # Jalankan migrasi + seeder
 docker compose exec app php artisan migrate --seed
-
-# Build frontend assets
-docker compose exec app npm run build
 ```
 
 Buka browser: **http://localhost:8000**
@@ -316,6 +329,9 @@ docker compose logs -f
 
 # Masuk ke container
 docker compose exec app bash
+
+# Masuk ke PostgreSQL
+docker compose exec postgres psql -U sakai -d sakai_laravel
 
 # Stop semua service
 docker compose down
@@ -354,9 +370,9 @@ cd sakai-laravel
 # Salin env
 cp .env.example .env
 
-# Edit untuk MySQL
+# Edit untuk PostgreSQL Docker
 nano .env  # atau: code .env / vim .env
-# Ubah: DB_CONNECTION=mysql, DB_HOST=mysql
+# Ubah: DB_CONNECTION=pgsql, DB_HOST=postgres
 
 # Build dan jalankan
 docker compose up -d --build
@@ -364,7 +380,6 @@ docker compose up -d --build
 # Tunggu build selesai, lalu:
 docker compose exec app php artisan key:generate
 docker compose exec app php artisan migrate --seed
-docker compose exec app npm run build
 ```
 
 Buka browser: **http://localhost:8000**
@@ -373,11 +388,11 @@ Buka browser: **http://localhost:8000**
 
 ### Development Mode dengan Docker
 
-Untuk development dengan hot-reload Vite:
+Untuk development, jalankan hanya PostgreSQL dan Redis via Docker, sementara Laravel dan Vite berjalan di host:
 
 ```bash
-# Jalankan hanya MySQL dan Redis via Docker
-docker compose -f docker-compose.dev.yml up -d mysql redis
+# Jalankan hanya PostgreSQL dan Redis via Docker
+docker compose -f docker-compose.dev.yml up -d postgres redis
 
 # Edit .env: DB_HOST=127.0.0.1, REDIS_HOST=127.0.0.1
 
@@ -405,7 +420,7 @@ pip install podman-compose
 git clone https://github.com/username/sakai-laravel.git
 cd sakai-laravel
 Copy-Item .env.example .env
-# Edit .env seperti Docker setup
+# Edit .env: DB_HOST=postgres
 
 # Jalankan dengan podman-compose
 podman-compose -f docker-compose.yml up -d --build
@@ -413,7 +428,6 @@ podman-compose -f docker-compose.yml up -d --build
 # Setup aplikasi
 podman exec -it sakai_app php artisan key:generate
 podman exec -it sakai_app php artisan migrate --seed
-podman exec -it sakai_app npm run build
 ```
 
 ### Mac
@@ -556,7 +570,7 @@ Klik ikon 🎨 (palette) di topbar untuk membuka configurator:
 Setelah menjalankan `php artisan migrate --seed`:
 
 | Field    | Value              |
-|----------|--------------------|
+|----------|------------------|
 | Email    | admin@sakai.dev    |
 | Password | password           |
 
@@ -586,6 +600,10 @@ npm run build              # Build frontend untuk production
 
 # Testing
 php artisan test           # Jalankan semua test
+
+# PostgreSQL (Docker)
+docker compose exec postgres psql -U sakai -d sakai_laravel  # Masuk psql
+docker compose exec app php artisan migrate:status           # Cek status migrasi
 ```
 
 ---
@@ -609,6 +627,7 @@ npm run dev  # pastikan Vite berjalan
 ```bash
 # Ubah port di .env
 APP_PORT=8001
+DB_PORT=5433   # Jika PostgreSQL port 5432 bentrok
 # Lalu restart
 docker compose down && docker compose up -d
 ```
@@ -626,10 +645,51 @@ docker compose exec app chmod -R 775 storage bootstrap/cache
 podman-compose --podman-run-args="--network=host" up -d
 ```
 
-### ❌ SQLite tidak ditemukan
+### ❌ PostgreSQL: "connection refused" (lokal)
 ```bash
-touch database/database.sqlite
-php artisan migrate --seed
+# Pastikan PostgreSQL berjalan
+sudo systemctl status postgresql   # Linux
+brew services list | grep postgres  # Mac
+
+# Cek koneksi manual
+psql -h 127.0.0.1 -U sakai -d sakai_laravel
+
+# Pastikan extension PHP terpasang
+php -m | grep pgsql
+```
+
+### ❌ PostgreSQL: "FATAL: password authentication failed"
+```bash
+# Reset password user di psql
+psql -U postgres
+ALTER USER sakai WITH PASSWORD 'secret';
+\q
+```
+
+### ❌ Docker PostgreSQL: Container unhealthy
+```bash
+# Cek log PostgreSQL
+docker compose logs postgres
+
+# Cek healthcheck manual
+docker compose exec postgres pg_isready -U sakai -d sakai_laravel
+
+# Hapus volume dan mulai ulang (HATI-HATI: data hilang)
+docker compose down -v
+docker compose up -d
+```
+
+### ❌ Error: "could not find driver" (pdo_pgsql)
+Pastikan PHP extension `pdo_pgsql` terpasang:
+```bash
+# Cek extension
+php -m | grep pdo
+
+# Ubuntu/Debian
+sudo apt install php8.3-pgsql
+
+# Alpine (Docker)
+# Sudah otomatis di Dockerfile
 ```
 
 ---
@@ -654,6 +714,6 @@ Template asli Sakai Vue oleh [PrimeFaces](https://github.com/primefaces/sakai-vu
 
 <div align="center">
 
-Built with ❤️ using **Laravel** + **Vue 3** + **Inertia.js** + **PrimeVue**
+Built with ❤️ using **Laravel** + **Vue 3** + **Inertia.js** + **PrimeVue** + **PostgreSQL**
 
 </div>
