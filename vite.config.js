@@ -10,6 +10,13 @@ export default defineConfig({
     optimizeDeps: {
         noDiscovery: true,
     },
+    server: {
+        host: '0.0.0.0',
+        port: 5173,
+        hmr: {
+            host: 'localhost',
+        },
+    },
     plugins: [
         laravel({
             input: ['resources/css/app.css', 'resources/js/app.js'],

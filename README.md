@@ -11,6 +11,7 @@
 [![Inertia](https://img.shields.io/badge/Inertia.js-2.x-7C3AED?style=flat-square)](https://inertiajs.com)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-4.x-06B6D4?style=flat-square&logo=tailwindcss)](https://tailwindcss.com)
 [![PrimeVue](https://img.shields.io/badge/PrimeVue-4.x-41B883?style=flat-square)](https://primevue.org)
+[![PHP](https://img.shields.io/badge/PHP-8.4-777BB4?style=flat-square&logo=php)](https://www.php.net)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql)](https://www.postgresql.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE.md)
 
@@ -49,7 +50,7 @@
 - 📦 **CRUD Demo** — Manajemen produk lengkap dengan validasi server
 - 🗂️ **15 UIKit Pages** — Showcase semua komponen PrimeVue
 - 🐘 **PostgreSQL** — Database production-grade dengan performa tinggi
-- 🐳 **Docker Ready** — Konfigurasi siap pakai untuk dev & production
+- 🐳 **Docker Ready** — Multi-stage build untuk production, Vite HMR untuk development
 - 🦭 **Podman Compatible** — Alternatif Docker tanpa daemon
 
 ---
@@ -63,10 +64,12 @@
 | **Vue 3** | 3.4+ | Frontend reaktif (Composition API) |
 | **TailwindCSS** | 4.x | Utility-first CSS (CSS-first config) |
 | **PrimeVue** | 4.x | UI component library lengkap |
-| **Vite** | 5.x | Build tool super cepat |
+| **Vite** | 5.x | Build tool super cepat + HMR |
 | **Ziggy** | 2.x | Named routes Laravel di JavaScript |
+| **PHP** | 8.4 | Runtime PHP terbaru |
 | **PostgreSQL** | 16 | Database relasional production-grade |
 | **Redis** | 7 | Cache & queue driver |
+| **Node.js** | 22 | Build frontend assets |
 
 ---
 
@@ -135,35 +138,37 @@ sakai-laravel/
 │   ├── nginx/
 │   │   └── default.conf            # Nginx config
 │   └── php/
-│       ├── Dockerfile              # PHP 8.3 FPM Alpine + pdo_pgsql
-│       └── php-fpm.conf
+│       ├── Dockerfile              # Production: PHP 8.4 multi-stage build
+│       ├── Dockerfile.dev          # Development: PHP 8.4 + Node 22 + npm
+│       └── php-fpm.conf            # PHP-FPM pool config
 │
-├── docker-compose.yml              # Production (app + nginx + postgres + redis)
-├── docker-compose.dev.yml          # Development (lebih ringan)
-└── vite.config.js                  # Vite + TailwindCSS + PrimeVue
+├── docker-compose.yml              # Production: app + nginx + postgres + redis + queue
+├── docker-compose.dev.yml          # Development: dengan Vite HMR service
+├── vite.config.js                  # Vite + TailwindCSS + PrimeVue (Docker-ready)
+└── .env.example                    # Template environment variables
 ```
 
 ---
 
 ## ✅ Syarat Sistem
 
-### Untuk Local Development
+### Untuk Local Development (tanpa Docker)
 | Software | Versi Minimum |
 |----------|--------------| 
-| PHP | 8.2+ |
+| PHP | 8.4+ |
+| PHP Extensions | `pdo_pgsql`, `pgsql`, `mbstring`, `bcmath`, `gd`, `pcntl` |
 | Composer | 2.x |
-| Node.js | 18+ |
-| npm | 9+ |
-| Database | PostgreSQL 14+ |
-| PHP Extension | `pdo_pgsql`, `pgsql` |
+| Node.js | 22+ |
+| npm | 10+ |
+| PostgreSQL | 14+ |
 
 ### Untuk Docker / Podman
-| Software | Platform |
-|----------|---------| 
-| Docker Desktop | Windows, Mac, Linux |
-| Docker Engine | Linux |
-| Podman Desktop | Windows, Mac |
-| Podman + podman-compose | Linux |
+| Software | Versi | Platform |
+|----------|-------|---------|
+| Docker Desktop | 4.x+ | Windows, Mac, Linux |
+| Docker Engine | 24+ | Linux |
+| Podman Desktop | 1.x+ | Windows, Mac |
+| Podman + podman-compose | 4.x+ | Linux |
 
 ---
 
@@ -191,20 +196,20 @@ php artisan key:generate
 
 ### 4. Setup database PostgreSQL
 
-Pastikan PostgreSQL sudah terinstall dan berjalan, lalu buat database:
+Pastikan PostgreSQL sudah terinstall dan berjalan, lalu buat user dan database:
 
 ```bash
-# Masuk ke PostgreSQL
+# Masuk ke PostgreSQL sebagai superuser
 psql -U postgres
 
-# Buat user dan database
+# Buat user, database, dan assign privilege
 CREATE USER sakai WITH PASSWORD 'secret';
 CREATE DATABASE sakai_laravel OWNER sakai;
 GRANT ALL PRIVILEGES ON DATABASE sakai_laravel TO sakai;
 \q
 ```
 
-Pastikan `.env` berisi konfigurasi berikut:
+Pastikan `.env` berisi:
 
 ```env
 DB_CONNECTION=pgsql
@@ -227,7 +232,7 @@ php artisan migrate --seed
 npm install
 ```
 
-### 7. Jalankan server
+### 7. Jalankan server development
 
 Buka **2 terminal** secara bersamaan:
 
@@ -245,187 +250,327 @@ Buka browser: **http://localhost:8000**
 
 ## ⚙️ Konfigurasi Environment
 
-File `.env` penting yang perlu diperhatikan:
+Salin `.env.example` menjadi `.env` dan sesuaikan nilainya:
 
 ```env
-# Nama aplikasi (tampil di browser tab & navbar)
+# ─── Aplikasi ─────────────────────────────────────────────────────────────
 APP_NAME="Sakai Laravel"
-
-# Mode debug — matikan di production!
-APP_DEBUG=false
-
-# URL aplikasi (sesuaikan dengan domain/port)
+APP_ENV=local           # Ganti ke "production" untuk prod
+APP_DEBUG=true          # Matikan (false) di production!
 APP_URL=http://localhost:8000
 
-# Database PostgreSQL
+# ─── Database (PostgreSQL) ────────────────────────────────────────────────
 DB_CONNECTION=pgsql
-DB_HOST=postgres      # Gunakan nama service jika pakai Docker
+DB_HOST=127.0.0.1       # Gunakan "postgres" jika pakai Docker
 DB_PORT=5432
 DB_DATABASE=sakai_laravel
 DB_USERNAME=sakai
 DB_PASSWORD=secret
 
-# Redis (untuk cache & queue)
-REDIS_HOST=redis       # Gunakan nama service jika pakai Docker
+# ─── Session & Cache ──────────────────────────────────────────────────────
+SESSION_DRIVER=database
+CACHE_STORE=database
+QUEUE_CONNECTION=database
+
+# ─── Redis (opsional, untuk cache & queue lebih cepat) ────────────────────
+REDIS_HOST=127.0.0.1    # Gunakan "redis" jika pakai Docker
+REDIS_PORT=6379
 ```
+
+> **Tips:** Untuk Docker, ubah `DB_HOST=postgres` dan `REDIS_HOST=redis` sesuai nama service di `docker-compose.yml`.
 
 ---
 
 ## 🐳 Deploy dengan Docker
 
-### Windows
+Project ini menyediakan dua mode Docker:
 
-#### Persiapan
-1. Install **Docker Desktop** dari https://www.docker.com/products/docker-desktop/
-2. Aktifkan WSL2 saat diminta (direkomendasikan)
-3. Buka **PowerShell** atau **Terminal** (bukan CMD)
+| Mode | File | Kegunaan |
+|------|------|----------|
+| **Production** | `docker-compose.yml` | Deploy siap pakai, frontend sudah dibuild |
+| **Development** | `docker-compose.dev.yml` | Dengan Vite HMR, source di-mount sebagai volume |
 
-#### Langkah-langkah
+### Arsitektur Docker
 
-```powershell
-# Clone project
-git clone https://github.com/username/sakai-laravel.git
-cd sakai-laravel
-
-# Salin env dan sesuaikan
-Copy-Item .env.example .env
+```
+┌─────────────────────────────────────────────────────┐
+│                   Docker Network                     │
+│                                                      │
+│  ┌──────────┐    ┌──────────┐    ┌───────────────┐  │
+│  │  nginx   │───▶│   app    │───▶│   postgres    │  │
+│  │ :80→8000 │    │ PHP 8.4  │    │ :5432         │  │
+│  └──────────┘    │ FPM:9000 │    └───────────────┘  │
+│                  └──────────┘                        │
+│  ┌──────────┐    ┌──────────┐    ┌───────────────┐  │
+│  │  vite*   │    │  queue   │───▶│    redis      │  │
+│  │:5173(dev)│    │ worker   │    │ :6379         │  │
+│  └──────────┘    └──────────┘    └───────────────┘  │
+│  (* hanya di docker-compose.dev.yml)                 │
+└─────────────────────────────────────────────────────┘
 ```
 
-Edit file `.env`, ubah DB_HOST menjadi `postgres` (nama service Docker):
+### Dockerfile Build Strategy
 
-```env
-DB_CONNECTION=pgsql
-DB_HOST=postgres
-DB_PORT=5432
-DB_DATABASE=sakai_laravel
-DB_USERNAME=sakai
-DB_PASSWORD=secret
-```
+**Production** (`docker/php/Dockerfile`) — **Multi-stage build:**
+- **Stage 1 (node_builder)**: Node 22 menginstall semua npm deps & build aset Vite
+- **Stage 2 (php runtime)**: PHP 8.4-FPM Alpine, copy hasil build dari stage 1
+- Hasil: image ringan tanpa Node/npm di production
 
-Lalu jalankan:
-
-```powershell
-# Build dan jalankan semua service
-docker compose up -d --build
-
-# Tunggu sekitar 2-3 menit untuk build pertama
-# Cek status
-docker compose ps
-
-# Generate app key
-docker compose exec app php artisan key:generate
-
-# Jalankan migrasi + seeder
-docker compose exec app php artisan migrate --seed
-```
-
-Buka browser: **http://localhost:8000**
-
-#### Perintah berguna
-
-```powershell
-# Melihat log
-docker compose logs -f
-
-# Masuk ke container
-docker compose exec app bash
-
-# Masuk ke PostgreSQL
-docker compose exec postgres psql -U sakai -d sakai_laravel
-
-# Stop semua service
-docker compose down
-
-# Stop dan hapus volume (reset database)
-docker compose down -v
-```
+**Development** (`docker/php/Dockerfile.dev`) — **Single stage:**
+- PHP 8.4-FPM Alpine + Node 22 + npm dalam satu image
+- Source code di-mount sebagai volume (tidak di-copy ke image)
+- Vite berjalan sebagai service terpisah untuk HMR
 
 ---
 
-### Mac / Linux
+### 🖥️ Windows
 
-#### Persiapan (Mac)
+#### Persiapan
 1. Install **Docker Desktop** dari https://www.docker.com/products/docker-desktop/
-2. Atau install **OrbStack** (lebih ringan di Mac): https://orbstack.dev
+2. Aktifkan **WSL2** saat diminta (direkomendasikan untuk performa terbaik)
+3. Buka **PowerShell** atau **Windows Terminal**
 
-#### Persiapan (Linux)
-```bash
-# Install Docker Engine
-curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER
-newgrp docker
+#### Mode Production
 
-# Install Docker Compose plugin
-sudo apt install docker-compose-plugin  # Ubuntu/Debian
-sudo dnf install docker-compose-plugin  # Fedora/RHEL
-```
-
-#### Langkah-langkah
-
-```bash
+```powershell
 # Clone project
 git clone https://github.com/username/sakai-laravel.git
 cd sakai-laravel
 
 # Salin env
-cp .env.example .env
+Copy-Item .env.example .env
+```
 
-# Edit untuk PostgreSQL Docker
-nano .env  # atau: code .env / vim .env
-# Ubah: DB_CONNECTION=pgsql, DB_HOST=postgres
+Edit `.env`, ubah konfigurasi database untuk Docker:
 
-# Build dan jalankan
+```env
+DB_CONNECTION=pgsql
+DB_HOST=postgres        # ← nama service Docker, BUKAN localhost
+DB_PORT=5432
+DB_DATABASE=sakai_laravel
+DB_USERNAME=sakai
+DB_PASSWORD=secret
+REDIS_HOST=redis        # ← nama service Docker
+```
+
+```powershell
+# Build dan jalankan semua service (pertama kali ~5-10 menit)
 docker compose up -d --build
 
-# Tunggu build selesai, lalu:
+# Cek semua container berjalan
+docker compose ps
+
+# Generate app key (hanya pertama kali)
 docker compose exec app php artisan key:generate
+
+# Jalankan migrasi + seeder (hanya pertama kali)
 docker compose exec app php artisan migrate --seed
 ```
 
-Buka browser: **http://localhost:8000**
+Buka browser: **http://localhost:8000** ✅
+
+#### Mode Development (dengan Vite HMR)
+
+```powershell
+# Salin env (jika belum)
+Copy-Item .env.example .env
+# Edit .env: DB_HOST=postgres, REDIS_HOST=redis
+
+# Jalankan stack development
+docker compose -f docker-compose.dev.yml up -d --build
+
+# Cek semua service running
+docker compose -f docker-compose.dev.yml ps
+
+# Pertama kali: install deps & migrate
+docker compose -f docker-compose.dev.yml exec app composer install
+docker compose -f docker-compose.dev.yml exec app php artisan key:generate
+docker compose -f docker-compose.dev.yml exec app php artisan migrate --seed
+docker compose -f docker-compose.dev.yml exec app npm install
+```
+
+Akses:
+- App: **http://localhost:8000**
+- Vite HMR: **http://localhost:5173**
+
+#### Perintah Berguna (Windows)
+
+```powershell
+# Lihat log semua service secara realtime
+docker compose logs -f
+
+# Lihat log service tertentu
+docker compose logs -f app
+docker compose logs -f postgres
+
+# Masuk ke container PHP
+docker compose exec app bash
+
+# Masuk ke PostgreSQL
+docker compose exec postgres psql -U sakai -d sakai_laravel
+
+# Jalankan artisan command
+docker compose exec app php artisan migrate:status
+docker compose exec app php artisan optimize:clear
+
+# Stop semua service
+docker compose down
+
+# Stop & hapus semua volume (RESET TOTAL — data hilang!)
+docker compose down -v
+
+# Rebuild image dari awal
+docker compose up -d --build --force-recreate
+```
 
 ---
 
-### Development Mode dengan Docker
+### 🍎 Mac / 🐧 Linux
 
-Untuk development, jalankan hanya PostgreSQL dan Redis via Docker, sementara Laravel dan Vite berjalan di host:
+#### Persiapan (Mac)
 
 ```bash
-# Jalankan hanya PostgreSQL dan Redis via Docker
-docker compose -f docker-compose.dev.yml up -d postgres redis
+# Opsi 1 — Docker Desktop (GUI)
+# Download dari: https://www.docker.com/products/docker-desktop/
 
-# Edit .env: DB_HOST=127.0.0.1, REDIS_HOST=127.0.0.1
+# Opsi 2 — OrbStack (lebih ringan, direkomendasikan untuk Mac)
+# Download dari: https://orbstack.dev
+brew install orbstack
+```
 
-# Jalankan Laravel dan Vite di host
-php artisan serve &
-npm run dev
+#### Persiapan (Linux)
+
+```bash
+# Install Docker Engine (cara resmi, support Ubuntu/Debian/Fedora/RHEL)
+curl -fsSL https://get.docker.com | sh
+
+# Tambahkan user ke group docker (tidak perlu sudo tiap perintah)
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Install Docker Compose plugin
+sudo apt install docker-compose-plugin   # Ubuntu/Debian
+sudo dnf install docker-compose-plugin   # Fedora/RHEL
+
+# Verifikasi instalasi
+docker --version
+docker compose version
+```
+
+#### Mode Production
+
+```bash
+# Clone project
+git clone https://github.com/username/sakai-laravel.git
+cd sakai-laravel
+
+# Salin dan edit env
+cp .env.example .env
+nano .env   # atau: code .env / vim .env
+
+# Ubah nilai penting:
+# DB_HOST=postgres
+# REDIS_HOST=redis
+# APP_ENV=production
+# APP_DEBUG=false
+# APP_URL=http://your-domain.com
+
+# Build dan jalankan (pertama kali ~5-10 menit)
+docker compose up -d --build
+
+# Cek status container
+docker compose ps
+
+# Setup awal (hanya sekali)
+docker compose exec app php artisan key:generate
+docker compose exec app php artisan migrate --seed
+
+# Optimalkan untuk production
+docker compose exec app php artisan optimize
+```
+
+Buka browser: **http://localhost:8000** ✅
+
+#### Mode Development (dengan Vite HMR)
+
+```bash
+# Salin env
+cp .env.example .env
+
+# Edit env untuk Docker
+sed -i 's/DB_HOST=127.0.0.1/DB_HOST=postgres/' .env
+sed -i 's/REDIS_HOST=127.0.0.1/REDIS_HOST=redis/' .env
+
+# Jalankan stack development
+docker compose -f docker-compose.dev.yml up -d --build
+
+# Cek status
+docker compose -f docker-compose.dev.yml ps
+
+# Pertama kali: install deps, migrate, seed
+docker compose -f docker-compose.dev.yml exec app composer install
+docker compose -f docker-compose.dev.yml exec app php artisan key:generate
+docker compose -f docker-compose.dev.yml exec app php artisan migrate --seed
+docker compose -f docker-compose.dev.yml exec app npm install
+```
+
+Akses:
+- App: **http://localhost:8000**
+- Vite HMR: **http://localhost:5173**
+
+> Vite HMR (hot-reload) akan otomatis reload browser saat Anda mengubah file Vue/CSS. Node modules di-cache sebagai Docker named volume sehingga tidak perlu install ulang tiap restart.
+
+#### Perintah Berguna (Mac/Linux)
+
+```bash
+# ─── Monitoring ──────────────────────────────────────────────────────────
+docker compose logs -f              # Semua log (realtime)
+docker compose logs -f app          # Log PHP-FPM
+docker compose logs -f postgres     # Log PostgreSQL
+docker compose logs -f nginx        # Log Nginx
+docker compose ps                   # Status semua container
+docker stats                        # Resource usage realtime
+
+# ─── Container Access ────────────────────────────────────────────────────
+docker compose exec app bash                              # Shell ke PHP container
+docker compose exec postgres psql -U sakai -d sakai_laravel  # PostgreSQL REPL
+
+# ─── Laravel Artisan ─────────────────────────────────────────────────────
+docker compose exec app php artisan migrate               # Jalankan migrasi baru
+docker compose exec app php artisan migrate:fresh --seed  # Reset + seed ulang
+docker compose exec app php artisan migrate:status        # Cek status migrasi
+docker compose exec app php artisan optimize:clear        # Clear semua cache
+docker compose exec app php artisan optimize              # Build cache (production)
+docker compose exec app php artisan queue:restart         # Restart queue workers
+
+# ─── Lifecycle ───────────────────────────────────────────────────────────
+docker compose stop                 # Stop container (data tetap ada)
+docker compose start                # Start kembali
+docker compose down                 # Stop + hapus container
+docker compose down -v              # Stop + hapus container + volume (RESET TOTAL)
+docker compose up -d --build        # Build ulang + start
 ```
 
 ---
 
 ## 🦭 Deploy dengan Podman
 
-Podman adalah alternatif Docker yang **tidak membutuhkan daemon** dan berjalan rootless (lebih aman).
+Podman adalah alternatif Docker yang **rootless** (lebih aman) dan **tanpa daemon**.
 
-### Windows (dengan Podman Desktop)
-
-1. Install **Podman Desktop** dari https://podman-desktop.io
-2. Buka Podman Desktop, klik "Initialize and start" untuk Podman Machine
+### Windows
 
 ```powershell
-# Install podman-compose
+# Install Podman Desktop: https://podman-desktop.io
+# Setelah install, buka Podman Desktop → "Initialize and start"
+
 pip install podman-compose
 
-# Clone dan setup
 git clone https://github.com/username/sakai-laravel.git
 cd sakai-laravel
 Copy-Item .env.example .env
-# Edit .env: DB_HOST=postgres
+# Edit .env: DB_HOST=postgres, REDIS_HOST=redis
 
-# Jalankan dengan podman-compose
 podman-compose -f docker-compose.yml up -d --build
-
-# Setup aplikasi
 podman exec -it sakai_app php artisan key:generate
 podman exec -it sakai_app php artisan migrate --seed
 ```
@@ -433,18 +578,13 @@ podman exec -it sakai_app php artisan migrate --seed
 ### Mac
 
 ```bash
-# Install Podman
 brew install podman podman-compose
 
-# Initialize Podman machine (Mac membutuhkan VM)
-podman machine init
+podman machine init --cpus 2 --memory 4096
 podman machine start
 
-# Jalankan project
 cd sakai-laravel
 podman-compose up -d --build
-
-# Setup
 podman exec -it sakai_app php artisan key:generate
 podman exec -it sakai_app php artisan migrate --seed
 ```
@@ -452,24 +592,19 @@ podman exec -it sakai_app php artisan migrate --seed
 ### Linux
 
 ```bash
-# Install Podman (Ubuntu/Debian)
-sudo apt install podman
-
-# Install podman-compose
-pip3 install podman-compose
+sudo apt install podman            # Ubuntu/Debian
 # atau
-sudo apt install podman-compose
+sudo dnf install podman            # Fedora/RHEL
 
-# Jalankan (tidak perlu sudo — rootless!)
+pip3 install podman-compose
+
 cd sakai-laravel
 podman-compose up -d --build
-
-# Setup
 podman exec -it sakai_app php artisan key:generate
 podman exec -it sakai_app php artisan migrate --seed
 ```
 
-> **Catatan Podman:** Jika ada issue dengan nama host antar container, tambahkan `--network=host` atau gunakan `host.containers.internal` sebagai hostname.
+> **Catatan Podman:** Jika ada issue dengan DNS antar container, tambahkan `--network=host` atau gunakan `host.containers.internal` sebagai hostname.
 
 ---
 
@@ -493,7 +628,7 @@ app.blade.php (hanya dimuat SEKALI)
 Vue Component (Pages/Dashboard.vue)
      │  menerima $data sebagai props
      ▼
-Tampilan ke User
+Tampilan ke User (SPA-like navigation)
 ```
 
 **Yang perlu diingat:**
@@ -579,31 +714,43 @@ Setelah menjalankan `php artisan migrate --seed`:
 ## 🔧 Perintah Berguna
 
 ```bash
-# Development
-php artisan serve          # Jalankan Laravel
-npm run dev                # Jalankan Vite dengan HMR
+# ─── Development (lokal) ──────────────────────────────────────────────────
+php artisan serve                    # Jalankan Laravel dev server
+npm run dev                          # Jalankan Vite dengan HMR
 
-# Database
-php artisan migrate        # Jalankan migrasi baru
-php artisan migrate:fresh --seed  # Reset + seed ulang
-php artisan db:seed        # Seed tanpa reset
+# ─── Database ─────────────────────────────────────────────────────────────
+php artisan migrate                  # Jalankan migrasi baru
+php artisan migrate:fresh --seed     # Reset + seed ulang
+php artisan migrate:status           # Cek status semua migrasi
+php artisan db:seed                  # Seed tanpa reset schema
 
-# Cache
-php artisan config:clear   # Clear config cache
-php artisan route:clear    # Clear route cache
-php artisan view:clear     # Clear view cache
-php artisan optimize:clear # Clear semua cache
+# ─── Cache & Optimization ─────────────────────────────────────────────────
+php artisan config:clear             # Clear config cache
+php artisan route:clear              # Clear route cache
+php artisan view:clear               # Clear view cache
+php artisan optimize:clear           # Clear semua cache sekaligus
+php artisan optimize                 # Build cache (untuk production)
 
-# Production
-php artisan optimize       # Cache config + routes
-npm run build              # Build frontend untuk production
+# ─── Production Build ─────────────────────────────────────────────────────
+npm run build                        # Build frontend assets (Vite)
 
-# Testing
-php artisan test           # Jalankan semua test
+# ─── Testing ──────────────────────────────────────────────────────────────
+php artisan test                     # Jalankan semua test
+php artisan test --filter=NamaTest   # Jalankan test tertentu
 
-# PostgreSQL (Docker)
-docker compose exec postgres psql -U sakai -d sakai_laravel  # Masuk psql
-docker compose exec app php artisan migrate:status           # Cek status migrasi
+# ─── Docker (production) ──────────────────────────────────────────────────
+docker compose up -d --build         # Build & start semua service
+docker compose exec app php artisan migrate --seed
+docker compose exec postgres psql -U sakai -d sakai_laravel
+docker compose logs -f               # Tail semua log
+docker compose down                  # Stop & remove containers
+docker compose down -v               # + hapus volumes (RESET DATA)
+
+# ─── Docker (development) ─────────────────────────────────────────────────
+docker compose -f docker-compose.dev.yml up -d --build
+docker compose -f docker-compose.dev.yml exec app php artisan migrate --seed
+docker compose -f docker-compose.dev.yml exec app npm install
+docker compose -f docker-compose.dev.yml logs -f
 ```
 
 ---
@@ -612,9 +759,9 @@ docker compose exec app php artisan migrate:status           # Cek status migras
 
 ### ❌ Error: "Route [xxx] not defined"
 Ziggy route tidak dimuat. Pastikan:
-1. `@routes` ada di `app.blade.php` (sudah ada)
+1. `@routes` ada di `resources/views/app.blade.php`
 2. Jalankan `php artisan route:clear`
-3. Cek nama route di `web.php` sesuai dengan yang dipanggil di `AppMenu.vue`
+3. Cek nama route di `web.php` cocok dengan pemanggilan di `AppMenu.vue`
 
 ### ❌ Halaman putih / blank setelah login
 ```bash
@@ -627,8 +774,8 @@ npm run dev  # pastikan Vite berjalan
 ```bash
 # Ubah port di .env
 APP_PORT=8001
-DB_PORT=5433   # Jika PostgreSQL port 5432 bentrok
-# Lalu restart
+DB_PORT=5433   # Jika 5432 bentrok dengan PostgreSQL lokal
+
 docker compose down && docker compose up -d
 ```
 
@@ -639,57 +786,94 @@ chmod -R 775 storage bootstrap/cache
 docker compose exec app chmod -R 775 storage bootstrap/cache
 ```
 
-### ❌ Podman: "cannot find network"
+### ❌ Docker Dev: "npm: command not found" di container app
 ```bash
-# Jalankan dengan host network
-podman-compose --podman-run-args="--network=host" up -d
+# Pastikan menggunakan Dockerfile.dev, bukan Dockerfile biasa
+docker compose -f docker-compose.dev.yml exec app npm --version
+
+# Jika masih error, rebuild image:
+docker compose -f docker-compose.dev.yml build --no-cache app
+```
+
+### ❌ Docker Dev: Vite HMR tidak bekerja (perubahan tidak reload)
+Pastikan `vite.config.js` sudah punya konfigurasi:
+```js
+server: {
+    host: '0.0.0.0',
+    port: 5173,
+    hmr: { host: 'localhost' },
+},
+```
+Lalu cek service vite berjalan:
+```bash
+docker compose -f docker-compose.dev.yml logs -f vite
+```
+
+### ❌ Docker: node_modules kosong setelah restart
+Node modules disimpan di Docker named volume. Install ulang jika volume kosong:
+```bash
+docker compose -f docker-compose.dev.yml exec app npm install
+```
+
+### ❌ Docker Production: "Vite manifest not found"
+Asset frontend belum dibuild. Rebuild image:
+```bash
+docker compose up -d --build --force-recreate app
+```
+Atau build manual saat development:
+```bash
+docker compose exec app npm run build
 ```
 
 ### ❌ PostgreSQL: "connection refused" (lokal)
 ```bash
-# Pastikan PostgreSQL berjalan
+# Cek status PostgreSQL
 sudo systemctl status postgresql   # Linux
 brew services list | grep postgres  # Mac
 
-# Cek koneksi manual
-psql -h 127.0.0.1 -U sakai -d sakai_laravel
+# Test koneksi manual
+psql -h 127.0.0.1 -U sakai -d sakai_laravel -p 5432
 
-# Pastikan extension PHP terpasang
+# Cek extension PHP terpasang
 php -m | grep pgsql
 ```
 
 ### ❌ PostgreSQL: "FATAL: password authentication failed"
 ```bash
-# Reset password user di psql
+# Reset password di psql
 psql -U postgres
 ALTER USER sakai WITH PASSWORD 'secret';
 \q
 ```
 
-### ❌ Docker PostgreSQL: Container unhealthy
+### ❌ Docker PostgreSQL: Container unhealthy / restart loop
 ```bash
-# Cek log PostgreSQL
+# Lihat log PostgreSQL
 docker compose logs postgres
 
-# Cek healthcheck manual
+# Test healthcheck manual
 docker compose exec postgres pg_isready -U sakai -d sakai_laravel
 
-# Hapus volume dan mulai ulang (HATI-HATI: data hilang)
+# Hapus volume & mulai ulang (HATI-HATI: data hilang!)
 docker compose down -v
 docker compose up -d
 ```
 
-### ❌ Error: "could not find driver" (pdo_pgsql)
-Pastikan PHP extension `pdo_pgsql` terpasang:
+### ❌ Error PHP: "could not find driver" (pdo_pgsql)
 ```bash
-# Cek extension
-php -m | grep pdo
-
 # Ubuntu/Debian
-sudo apt install php8.3-pgsql
+sudo apt install php8.4-pgsql
 
-# Alpine (Docker)
-# Sudah otomatis di Dockerfile
+# Alpine (di dalam Docker)
+# Sudah otomatis di Dockerfile & Dockerfile.dev
+
+# Verifikasi
+php -m | grep pdo
+```
+
+### ❌ Podman: "cannot find network"
+```bash
+podman-compose --podman-run-args="--network=host" up -d
 ```
 
 ---
@@ -714,6 +898,6 @@ Template asli Sakai Vue oleh [PrimeFaces](https://github.com/primefaces/sakai-vu
 
 <div align="center">
 
-Built with ❤️ using **Laravel** + **Vue 3** + **Inertia.js** + **PrimeVue** + **PostgreSQL**
+Built with ❤️ using **Laravel** + **Vue 3** + **Inertia.js** + **PrimeVue** + **PHP 8.4** + **PostgreSQL**
 
 </div>

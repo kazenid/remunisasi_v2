@@ -1,17 +1,45 @@
 services:
-  # ─── Application (PHP + Vite Dev Server inline) ────────────────────────
+  # ─── Application (PHP 8.4-FPM) ─────────────────────────────────────────────
   app:
-    image: php:8.3-fpm-alpine
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile.dev
     container_name: sakai_app_dev
     working_dir: /var/www
     volumes:
       - .:/var/www
+      - sakai_vendor_dev:/var/www/vendor
+      - sakai_node_modules_dev:/var/www/node_modules
     ports:
       - "9000:9000"
     networks:
       - sakai_network
-    command: php-fpm
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: sh -c "composer install --no-interaction && php-fpm"
 
+  # ─── Vite Dev Server (HMR) ─────────────────────────────────────────────────
+  vite:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile.dev
+    container_name: sakai_vite_dev
+    working_dir: /var/www
+    volumes:
+      - .:/var/www
+      - sakai_node_modules_dev:/var/www/node_modules
+    ports:
+      - "5173:5173"
+    networks:
+      - sakai_network
+    depends_on:
+      - app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+
+  # ─── Web Server (Nginx) ────────────────────────────────────────────────────
   nginx:
     image: nginx:1.25-alpine
     container_name: sakai_nginx_dev
@@ -25,7 +53,7 @@ services:
     depends_on:
       - app
 
-  # ─── Database (PostgreSQL) ─────────────────────────────────────────────
+  # ─── Database (PostgreSQL 16) ──────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: sakai_postgres_dev
@@ -46,6 +74,7 @@ services:
       timeout: 5s
       retries: 5
 
+  # ─── Cache (Redis 7) ───────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: sakai_redis_dev
@@ -61,6 +90,8 @@ services:
 
 volumes:
   sakai_postgres_dev_data:
+  sakai_vendor_dev:
+  sakai_node_modules_dev:
 
 networks:
   sakai_network:
