@@ -19,7 +19,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: sh -c "composer install --no-interaction && php-fpm"
+    command: sh -c "chmod -R 777 storage bootstrap/cache && composer install --no-interaction && php-fpm"
 
   # ─── Vite Dev Server (HMR) ─────────────────────────────────────────────────
   vite:
@@ -58,7 +58,7 @@ services:
     image: postgres:16-alpine
     container_name: sakai_postgres_dev
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_DB: sakai_laravel
       POSTGRES_USER: sakai
@@ -69,7 +69,7 @@ services:
     networks:
       - sakai_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sakai -d sakai_laravel"]
+      test: [ "CMD-SHELL", "pg_isready -U sakai -d sakai_laravel" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -83,7 +83,7 @@ services:
     networks:
       - sakai_network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 3
