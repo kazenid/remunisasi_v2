@@ -98,7 +98,7 @@ function onPresetChange() {
 </script>
 
 <template>
-    <div class="config-panel hidden animate-slidedown surface-card">
+    <div class="config-panel hidden animate-slidedown">
         <div class="flex flex-col gap-4">
             <div>
                 <span class="text-sm text-muted-color font-semibold">Primary</span>

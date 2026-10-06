@@ -2,30 +2,16 @@
 @import "tailwindcss-primeui";
 @import "primeicons/primeicons.css";
 
-@custom-variant dark (&:where(.app-dark, .app-dark *));
-
 /* ─── Layout Variables ──────────────────────────────────── */
 :root {
-    --topbar-height: 4.5rem;
-    --sidebar-width: 17rem;
+    --topbar-height: 4rem;
+    --sidebar-width: 16rem;
     --sidebar-width-slim: 4rem;
-    --content-padding: clamp(1rem, 2.5vw, 2.5rem);
-    --content-max-width: 1440px;
+    --content-padding: 2rem;
     --transition-duration: 0.2s;
-    --border-radius: 16px;
+    --border-radius: 12px;
     --inline-spacing: 0.5rem;
-    --focus-ring: 0 0 0 0.2rem color-mix(in srgb, var(--p-primary-color), transparent 75%);
-    --app-shadow: 0 10px 30px rgba(15, 23, 42, 0.045);
-    --app-shadow-hover: 0 16px 36px rgba(15, 23, 42, 0.08);
-    --p-surface-card: var(--p-surface-0, #ffffff);
-    --p-surface-overlay: var(--p-surface-0, #ffffff);
-    --p-surface-border: var(--p-surface-200, #e2e8f0);
-}
-
-.app-dark {
-    --p-surface-card: var(--p-surface-900, #111827);
-    --p-surface-overlay: var(--p-surface-900, #111827);
-    --p-surface-border: var(--p-surface-800, #1f2937);
+    --focus-ring: 0 0 0 0.2rem var(--p-primary-200);
 }
 
 /* ─── Base Reset ────────────────────────────────────────── */
@@ -44,27 +30,11 @@ body {
     margin: 0;
     padding: 0;
     font-family: var(--p-font-family, ui-sans-serif, system-ui, sans-serif);
-    background:
-        radial-gradient(circle at 92% 0%, color-mix(in srgb, var(--p-primary-color), transparent 94%), transparent 28rem),
-        var(--p-surface-ground);
+    background-color: var(--p-surface-ground);
     color: var(--p-text-color);
     min-height: 100vh;
-    line-height: 1.55;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-}
-
-button,
-a,
-input,
-select,
-textarea {
-    -webkit-tap-highlight-color: transparent;
-}
-
-:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring);
 }
 
 /* ─── Layout Wrapper ────────────────────────────────────── */
@@ -83,12 +53,11 @@ textarea {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 clamp(1rem, 2.5vw, 2.5rem);
-    background: color-mix(in srgb, var(--p-surface-card), transparent 3%);
-    border-bottom: 1px solid color-mix(in srgb, var(--p-surface-border), transparent 15%);
-    backdrop-filter: blur(16px);
+    padding: 0 2rem;
+    background: var(--p-surface-card);
+    border-bottom: 1px solid var(--p-surface-border);
     transition: left var(--transition-duration);
-    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.06);
 }
 
 .layout-topbar-logo-container {
@@ -190,11 +159,11 @@ textarea {
     width: var(--sidebar-width);
     z-index: 996;
     background: var(--p-surface-card);
-    border-right: 1px solid color-mix(in srgb, var(--p-surface-border), transparent 10%);
+    border-right: 1px solid var(--p-surface-border);
     overflow-y: auto;
     overflow-x: hidden;
     transition: transform var(--transition-duration), left var(--transition-duration);
-    padding: 1.25rem 0.75rem;
+    padding: 1rem 0;
     scrollbar-width: thin;
     scrollbar-color: var(--p-surface-border) transparent;
 }
@@ -224,14 +193,7 @@ textarea {
 
 .layout-main {
     flex: 1;
-    width: 100%;
-    max-width: calc(var(--content-max-width) + (var(--content-padding) * 2));
-    margin: 0 auto;
     padding: var(--content-padding);
-}
-
-.layout-main > * {
-    animation: page-enter 0.28s ease both;
 }
 
 /* ─── Layout Modes ──────────────────────────────────────── */
@@ -271,10 +233,6 @@ textarea {
 }
 
 @media (max-width: 991px) {
-    .layout-main {
-        padding-top: 1.25rem;
-    }
-
     .layout-topbar-menu-button {
         display: flex;
         align-items: center;
@@ -292,15 +250,8 @@ textarea {
         padding: 0 1rem;
     }
 
-    .layout-sidebar,
-    .layout-static:not(.layout-mobile-active) .layout-sidebar {
-        z-index: 996;
+    .layout-sidebar {
         transform: translateX(-100%);
-        background: var(--p-surface-card);
-    }
-
-    .layout-static.layout-mobile-active .layout-sidebar {
-        transform: translateX(0);
     }
 
     .layout-mobile-active .layout-sidebar {
@@ -330,12 +281,12 @@ textarea {
 }
 
 .layout-menu .layout-menuitem-root-text {
-    font-size: 0.68rem;
-    font-weight: 800;
+    font-size: 0.7rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.1em;
     color: var(--p-text-muted-color);
-    padding: 0.9rem 0.75rem 0.4rem;
+    padding: 0.75rem 1.25rem 0.25rem;
     margin-top: 0.5rem;
 }
 
@@ -344,34 +295,31 @@ textarea {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    min-height: 2.75rem;
-    padding: 0.7rem 0.8rem;
-    border-radius: 11px;
-    margin: 0.15rem 0;
+    padding: 0.625rem 1.25rem;
+    border-radius: 8px;
+    margin: 0 0.5rem;
     color: var(--p-text-color);
     text-decoration: none;
     cursor: pointer;
-    transition: background-color var(--transition-duration), color var(--transition-duration), transform var(--transition-duration);
-    font-weight: 550;
+    transition: background-color var(--transition-duration), color var(--transition-duration);
+    font-weight: 500;
     font-size: 0.875rem;
     border: none;
     background: transparent;
-    width: 100%;
+    width: calc(100% - 1rem);
 }
 
 .layout-menu a:hover,
 .layout-menuitem-link:hover {
     background-color: var(--p-surface-hover);
     color: var(--p-primary-color);
-    transform: translateX(2px);
 }
 
 .layout-menu a.router-link-active,
 .layout-menuitem-link.active-route {
-    background: linear-gradient(90deg, color-mix(in srgb, var(--p-primary-color), transparent 86%), transparent);
+    background-color: var(--p-primary-50);
     color: var(--p-primary-color);
-    font-weight: 700;
-    box-shadow: inset 3px 0 0 var(--p-primary-color);
+    font-weight: 600;
 }
 
 .app-dark .layout-menu a.router-link-active,
@@ -415,28 +363,22 @@ textarea {
 .card {
     background: var(--p-surface-card);
     border-radius: var(--border-radius);
-    border: 1px solid color-mix(in srgb, var(--p-surface-border), transparent 8%);
+    border: 1px solid var(--p-surface-border);
     padding: 1.5rem;
     margin-bottom: 1.5rem;
-    box-shadow: var(--app-shadow);
-    transition: box-shadow var(--transition-duration), border-color var(--transition-duration), transform var(--transition-duration);
-}
-
-.card:hover {
-    border-color: color-mix(in srgb, var(--p-primary-color), var(--p-surface-border) 82%);
-    box-shadow: var(--app-shadow-hover);
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
 }
 
 /* ─── Footer ────────────────────────────────────────────── */
 .layout-footer {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 1.25rem var(--content-padding);
-    background: transparent;
-    border-top: 1px solid color-mix(in srgb, var(--p-surface-border), transparent 30%);
-    font-size: 0.75rem;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1.25rem 2rem;
+    background: var(--p-surface-card);
+    border-top: 1px solid var(--p-surface-border);
+    font-size: 0.8125rem;
     color: var(--p-text-muted-color);
 }
 
@@ -448,208 +390,10 @@ textarea {
     width: 16rem;
     padding: 1rem;
     background: var(--p-surface-card);
-    color: var(--p-text-color);
-    max-width: calc(100vw - 2rem);
     border: 1px solid var(--p-surface-border);
     border-radius: var(--border-radius);
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
     z-index: 1000;
-}
-
-/* Keep native form controls and PrimeVue overlays aligned with active theme. */
-input:not([type="checkbox"]):not([type="radio"]),
-select,
-textarea {
-    color: var(--p-form-field-color, var(--p-text-color));
-    background-color: var(--p-form-field-background, var(--p-surface-0));
-    border-color: var(--p-form-field-border-color, var(--p-surface-border));
-}
-
-/* ─── Dialog / Modal System ────────────────────────────── */
-.p-dialog-mask {
-    background-color: rgba(15, 23, 42, 0.5) !important;
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    padding: 1rem !important;
-    box-sizing: border-box;
-}
-
-.app-dark .p-dialog-mask {
-    background-color: rgba(0, 0, 0, 0.72) !important;
-}
-
-.p-dialog {
-    color: var(--p-text-color, #0f172a);
-    background: var(--p-surface-0, #ffffff) !important;
-    background-color: var(--p-surface-0, #ffffff) !important;
-    border: 1px solid var(--p-surface-200, #e2e8f0) !important;
-    border-radius: var(--border-radius, 1rem) !important;
-    box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25) !important;
-    max-width: calc(100vw - 2rem) !important;
-    max-height: calc(100dvh - 2rem) !important;
-    margin: 1rem auto !important;
-    overflow: hidden;
-}
-
-.app-dark .p-dialog {
-    color: var(--p-text-color, #f8fafc);
-    background: var(--p-surface-900, #111827) !important;
-    background-color: var(--p-surface-900, #111827) !important;
-    border-color: var(--p-surface-700, #334155) !important;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6) !important;
-}
-
-.p-dialog-header {
-    background: var(--p-surface-0, #ffffff) !important;
-    background-color: var(--p-surface-0, #ffffff) !important;
-    color: var(--p-text-color, #0f172a);
-    border-bottom: 1px solid var(--p-surface-200, #e2e8f0) !important;
-    padding: 1.25rem 1.5rem 1rem !important;
-}
-
-.app-dark .p-dialog-header {
-    background: var(--p-surface-900, #111827) !important;
-    background-color: var(--p-surface-900, #111827) !important;
-    color: var(--p-text-color, #f8fafc);
-    border-bottom-color: var(--p-surface-800, #1f2937) !important;
-}
-
-.p-dialog-title {
-    font-size: 1.15rem;
-    font-weight: 650;
-    letter-spacing: -0.01em;
-}
-
-.p-dialog-content {
-    background: var(--p-surface-0, #ffffff) !important;
-    background-color: var(--p-surface-0, #ffffff) !important;
-    color: var(--p-text-color, #0f172a);
-    padding: 1.25rem 1.5rem !important;
-    overflow-y: auto;
-}
-
-.app-dark .p-dialog-content {
-    background: var(--p-surface-900, #111827) !important;
-    background-color: var(--p-surface-900, #111827) !important;
-    color: var(--p-text-color, #f8fafc);
-}
-
-.p-dialog-footer {
-    background: var(--p-surface-0, #ffffff) !important;
-    background-color: var(--p-surface-0, #ffffff) !important;
-    color: var(--p-text-color, #0f172a);
-    border-top: 1px solid var(--p-surface-200, #e2e8f0) !important;
-    padding: 1rem 1.5rem !important;
-}
-
-.app-dark .p-dialog-footer {
-    background: var(--p-surface-900, #111827) !important;
-    background-color: var(--p-surface-900, #111827) !important;
-    color: var(--p-text-color, #f8fafc);
-    border-top-color: var(--p-surface-800, #1f2937) !important;
-}
-
-.p-dialog form {
-    min-width: 0;
-}
-
-.p-dialog form > * {
-    min-width: 0;
-}
-
-.p-confirmdialog .p-dialog-content {
-    padding: 1.5rem !important;
-}
-
-.task-dialog .p-dialog-header {
-    padding: 1.25rem 1.5rem 1rem !important;
-    border-bottom: 1px solid var(--p-surface-200, #e2e8f0) !important;
-}
-
-.task-dialog .p-dialog-title {
-    font-size: 1.2rem;
-    font-weight: 650;
-    letter-spacing: -0.02em;
-}
-
-.task-dialog .p-dialog-content {
-    padding: 1.25rem 1.5rem !important;
-}
-
-.task-form {
-    display: flex;
-    flex-direction: column;
-    gap: 1.15rem;
-}
-
-.task-form input:not([type="file"]),
-.task-form select,
-.task-form textarea {
-    min-height: 2.75rem;
-    padding: 0.65rem 0.75rem;
-    font-size: 0.9rem;
-}
-
-.task-form textarea {
-    min-height: 5rem;
-}
-
-.task-form .task-evidence {
-    background: var(--p-surface-50, #f8fafc);
-}
-
-.app-dark .task-form .task-evidence {
-    background: rgba(30, 41, 59, 0.5);
-}
-
-.task-dialog .p-dialog-footer {
-    padding: 0.9rem 1.5rem !important;
-    border-top: 1px solid var(--p-surface-200, #e2e8f0) !important;
-}
-
-@media (max-width: 640px) {
-    .p-dialog-mask {
-        padding: 0.75rem !important;
-    }
-
-    .p-dialog {
-        width: calc(100vw - 1.5rem) !important;
-        max-width: calc(100vw - 1.5rem) !important;
-        margin: 0.75rem auto !important;
-    }
-
-    .p-dialog-header,
-    .p-dialog-content,
-    .p-dialog-footer {
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
-    }
-
-    .p-dialog form .grid {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .p-dialog form input,
-    .p-dialog form select,
-    .p-dialog form textarea {
-        min-width: 0;
-        font-size: 0.875rem;
-    }
-
-    .p-dialog form > div:last-child {
-        flex-wrap: wrap;
-    }
-
-    .task-dialog .p-dialog-header,
-    .task-dialog .p-dialog-content,
-    .task-dialog .p-dialog-footer {
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
-    }
-
-    .task-form {
-        gap: 1rem;
-    }
 }
 
 /* ─── Floating Configurator ─────────────────────────────── */
@@ -689,11 +433,6 @@ textarea {
     to   { transform: translateY(0);     opacity: 1; }
 }
 
-@keyframes page-enter {
-    from { opacity: 0; transform: translateY(6px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-
 .animate-fadein {
     animation: fadein 0.15s ease;
 }
@@ -705,38 +444,6 @@ textarea {
 /* ─── Rounded Border (PrimeVue compat) ──────────────────── */
 .rounded-border {
     border-radius: var(--p-border-radius-md, 8px);
-}
-
-@media (max-width: 640px) {
-    .layout-topbar-logo .text-base {
-        font-size: 0.9rem;
-    }
-
-    .layout-topbar-logo .text-\[10px\] {
-        font-size: 0.55rem;
-    }
-
-    .layout-footer {
-        align-items: flex-start;
-        flex-direction: column;
-        padding-bottom: 1.5rem;
-    }
-
-    .card {
-        padding: 1.15rem;
-        margin-bottom: 1rem;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-        scroll-behavior: auto !important;
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-    }
 }
 
 /* ─── View Transition (dark mode) ──────────────────────── */

@@ -40,9 +40,9 @@ onBeforeMount(() => {
 });
 
 watch(
-    () => layoutState.activeMenuItem,
+    () => layoutConfig.activeMenuItem,
     (newVal) => {
-        isActiveMenu.value = newVal === itemKey.value || newVal?.startsWith(itemKey.value + '-') || false;
+        isActiveMenu.value = newVal === itemKey.value || newVal.startsWith(itemKey.value + '-');
     },
 );
 
@@ -169,7 +169,7 @@ watch(
 
         <!-- Submenu (recursive) -->
         <Transition name="layout-submenu">
-            <ul v-if="!root && item.items && isActiveMenu" class="layout-submenu" role="menu">
+            <ul v-if="item.items && isActiveMenu" class="layout-submenu" role="menu">
                 <app-menu-item
                     v-for="(child, i) in item.items"
                     :key="child.label"
