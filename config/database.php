@@ -64,6 +64,26 @@ return [
             ]) : [],
         ],
 
+        'sikep' => [
+            'driver' => 'mysql',
+            'url' => env('DB_SIKEP_URL'),
+            'host' => env('DB_SIKEP_HOST', '127.0.0.1'),
+            'port' => env('DB_SIKEP_PORT', '3306'),
+            'database' => env('DB_SIKEP_DATABASE', 'bangil_kepegawaian'),
+            'username' => env('DB_SIKEP_USERNAME', 'root'),
+            'password' => env('DB_SIKEP_PASSWORD', ''),
+            'unix_socket' => env('DB_SIKEP_SOCKET', ''),
+            'charset' => env('DB_SIKEP_CHARSET', 'latin1'),
+            'collation' => env('DB_SIKEP_COLLATION', 'latin1_swedish_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => false,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
         'mariadb' => [
             'driver' => 'mariadb',
             'url' => env('DB_URL'),

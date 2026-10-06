@@ -177,7 +177,7 @@ function formatCurrency(value) {
     </div>
 
     <!-- Create / Edit Dialog -->
-    <Dialog v-model:visible="productDialog" :style="{ width: '450px' }" header="Product Details" :modal="true">
+    <Dialog v-model:visible="productDialog" :style="{ width: 'min(480px, calc(100vw - 32px))' }" :contentStyle="{ maxHeight: 'calc(100dvh - 10rem)', overflowY: 'auto' }" header="Product Details" :modal="true">
         <div class="flex flex-col gap-4">
             <div>
                 <label for="p-name" class="block font-bold mb-2">Name <span class="text-red-500">*</span></label>
@@ -215,7 +215,7 @@ function formatCurrency(value) {
     </Dialog>
 
     <!-- Delete Confirm Dialog -->
-    <Dialog v-model:visible="deleteProductDialog" :style="{ width: '450px' }" header="Confirm Delete" :modal="true">
+    <Dialog v-model:visible="deleteProductDialog" :style="{ width: 'min(450px, calc(100vw - 32px))' }" header="Confirm Delete" :modal="true">
         <div class="flex items-center gap-4">
             <i class="pi pi-exclamation-triangle text-orange-500 text-4xl"></i>
             <span>Are you sure you want to delete this product?</span>

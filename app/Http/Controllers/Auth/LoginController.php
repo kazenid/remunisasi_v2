@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Providers\RouteServiceProvider;
+use App\Services\SikepAuthService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,6 +12,10 @@ use Inertia\Response;
 
 class LoginController extends Controller
 {
+    public function __construct(
+        protected SikepAuthService $authService
+    ) {}
+
     public function create(): Response
     {
         return Inertia::render('Auth/Login');
@@ -20,18 +24,21 @@ class LoginController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $credentials = $request->validate([
-            'email'    => 'required|email',
-            'password' => 'required',
+            'login'    => 'required|string',
+            'password' => 'required|string',
         ]);
 
-        if (Auth::attempt($credentials, $request->boolean('remember'))) {
+        $user = $this->authService->authenticate($credentials['login'], $credentials['password']);
+
+        if ($user) {
+            Auth::login($user, $request->boolean('remember'));
             $request->session()->regenerate();
             return redirect()->intended(route('dashboard'));
         }
 
         return back()->withErrors([
-            'email' => 'The provided credentials do not match our records.',
-        ])->onlyInput('email');
+            'login' => 'Username, No Absen, atau password SIKEP tidak cocok atau akun tidak aktif.',
+        ])->onlyInput('login');
     }
 
     public function destroy(Request $request): RedirectResponse
@@ -42,3 +49,4 @@ class LoginController extends Controller
         return redirect()->route('login');
     }
 }
+
