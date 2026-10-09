@@ -1,122 +1,68 @@
 <script setup>
-import { ref } from 'vue';
+import { computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import AppMenuItem from './AppMenuItem.vue';
 
-const model = ref([
-    {
-        label: 'Home',
-        items: [
-            {
-                label: 'Dashboard',
-                icon: 'pi pi-fw pi-home',
-                route: 'dashboard',
-            },
-        ],
-    },
-    {
-        label: 'UI Components',
-        items: [
-            { label: 'Form Layout',  icon: 'pi pi-fw pi-id-card',      route: 'uikit.formlayout' },
-            { label: 'Input',        icon: 'pi pi-fw pi-check-square',  route: 'uikit.input' },
-            { label: 'Button',       icon: 'pi pi-fw pi-mobile',        route: 'uikit.button',   class: 'rotated-icon' },
-            { label: 'Table',        icon: 'pi pi-fw pi-table',         route: 'uikit.table' },
-            { label: 'List',         icon: 'pi pi-fw pi-list',          route: 'uikit.list' },
-            { label: 'Tree',         icon: 'pi pi-fw pi-share-alt',     route: 'uikit.tree' },
-            { label: 'Panel',        icon: 'pi pi-fw pi-tablet',        route: 'uikit.panel' },
-            { label: 'Overlay',      icon: 'pi pi-fw pi-clone',         route: 'uikit.overlay' },
-            { label: 'Media',        icon: 'pi pi-fw pi-image',         route: 'uikit.media' },
-            { label: 'Menu',         icon: 'pi pi-fw pi-bars',          route: 'uikit.menu' },
-            { label: 'Message',      icon: 'pi pi-fw pi-comment',       route: 'uikit.message' },
-            { label: 'File',         icon: 'pi pi-fw pi-file',          route: 'uikit.file' },
-            { label: 'Chart',        icon: 'pi pi-fw pi-chart-bar',     route: 'uikit.charts' },
-            { label: 'Timeline',     icon: 'pi pi-fw pi-calendar',      route: 'uikit.timeline' },
-            { label: 'Misc',         icon: 'pi pi-fw pi-circle',        route: 'uikit.misc' },
-        ],
-    },
-    {
-        label: 'Prime Blocks',
-        icon: 'pi pi-fw pi-prime',
-        items: [
-            { label: 'Free Blocks', icon: 'pi pi-fw pi-eye',   route: 'blocks.free' },
-            { label: 'All Blocks',  icon: 'pi pi-fw pi-globe', url: 'https://blocks.primevue.org/', target: '_blank' },
-        ],
-    },
-    {
-        label: 'Pages',
-        icon: 'pi pi-fw pi-briefcase',
-        items: [
-            {
-                label: 'Auth',
-                icon: 'pi pi-fw pi-user',
-                items: [
-                    { label: 'Login',         icon: 'pi pi-fw pi-sign-in',       route: 'login' },
-                    { label: 'Register',      icon: 'pi pi-fw pi-user-plus',      route: 'register' },
-                    { label: 'Error',         icon: 'pi pi-fw pi-times-circle',   route: 'auth.error' },
-                    { label: 'Access Denied', icon: 'pi pi-fw pi-lock',           route: 'auth.access' },
-                ],
-            },
-            { label: 'Crud',      icon: 'pi pi-fw pi-pencil',            route: 'pages.crud' },
-            { label: 'Not Found', icon: 'pi pi-fw pi-exclamation-circle', route: 'pages.notfound' },
-            { label: 'Empty',     icon: 'pi pi-fw pi-circle-off',         route: 'pages.empty' },
-        ],
-    },
-    {
-        label: 'Hierarchy',
-        icon: 'pi pi-fw pi-align-left',
-        items: [
-            {
-                label: 'Submenu 1',
-                icon: 'pi pi-fw pi-align-left',
-                items: [
-                    {
-                        label: 'Submenu 1.1',
-                        icon: 'pi pi-fw pi-align-left',
-                        items: [
-                            { label: 'Submenu 1.1.1', icon: 'pi pi-fw pi-align-left' },
-                            { label: 'Submenu 1.1.2', icon: 'pi pi-fw pi-align-left' },
-                            { label: 'Submenu 1.1.3', icon: 'pi pi-fw pi-align-left' },
-                        ],
-                    },
-                    {
-                        label: 'Submenu 1.2',
-                        icon: 'pi pi-fw pi-align-left',
-                        items: [
-                            { label: 'Submenu 1.2.1', icon: 'pi pi-fw pi-align-left' },
-                        ],
-                    },
-                ],
-            },
-            {
-                label: 'Submenu 2',
-                icon: 'pi pi-fw pi-align-left',
-                items: [
-                    {
-                        label: 'Submenu 2.1',
-                        icon: 'pi pi-fw pi-align-left',
-                        items: [
-                            { label: 'Submenu 2.1.1', icon: 'pi pi-fw pi-align-left' },
-                            { label: 'Submenu 2.1.2', icon: 'pi pi-fw pi-align-left' },
-                        ],
-                    },
-                    {
-                        label: 'Submenu 2.2',
-                        icon: 'pi pi-fw pi-align-left',
-                        items: [
-                            { label: 'Submenu 2.2.1', icon: 'pi pi-fw pi-align-left' },
-                        ],
-                    },
-                ],
-            },
-        ],
-    },
-    {
-        label: 'Get Started',
-        items: [
-            { label: 'Documentation', icon: 'pi pi-fw pi-book',   route: 'documentation' },
-            { label: 'View Source',   icon: 'pi pi-fw pi-github', url: 'https://github.com/primefaces/sakai-vue', target: '_blank' },
-        ],
-    },
-]);
+const page = usePage();
+const user = computed(() => page.props.auth?.user ?? null);
+
+const model = computed(() => {
+    const u = user.value;
+    const isAdmin = !!u?.is_admin;
+    // Menu Katimker/Kabid bersifat personal (tugas saya / penilaian saya),
+    // jadi hanya tampil bila user benar-benar memegang peran tsb — bukan karena admin.
+    // Kebutuhan lintas-pengguna untuk admin ada di grup Administrasi.
+    const showKatimker = !!u?.is_katimker;
+    const showKabid = !!u?.is_kabid;
+
+    const menu = [
+        {
+            label: 'Beranda',
+            items: [
+                { label: 'Dashboard', icon: 'pi pi-fw pi-home', route: 'dashboard' },
+            ],
+        },
+    ];
+
+    if (showKatimker) {
+        menu.push({
+            label: 'Katimker',
+            items: [
+                { label: 'Tugas Saya', icon: 'pi pi-fw pi-list-check', route: 'katimker.tugas.index' },
+                { label: 'Rekap Saya', icon: 'pi pi-fw pi-chart-bar', route: 'katimker.rekap.index' },
+            ],
+        });
+    }
+
+    if (showKabid) {
+        menu.push({
+            label: 'Kabid',
+            items: [
+                { label: 'Penilaian', icon: 'pi pi-fw pi-check-square', route: 'kabid.penilaian.index' },
+                { label: 'Beri Penugasan', icon: 'pi pi-fw pi-plus-circle', route: 'kabid.penugasan.create' },
+                { label: 'Rekap Binaan', icon: 'pi pi-fw pi-chart-bar', route: 'kabid.rekap.index' },
+            ],
+        });
+    }
+
+    if (isAdmin) {
+        menu.push({
+            label: 'Administrasi',
+            items: [
+                { label: 'Manajemen Pengguna', icon: 'pi pi-fw pi-users', route: 'admin.pengguna.index' },
+                { label: 'Pemetaan Approver', icon: 'pi pi-fw pi-sitemap', route: 'admin.pemetaan.index' },
+                { label: 'Periode', icon: 'pi pi-fw pi-calendar', route: 'admin.periode.index' },
+                { label: 'Rekap Kinerja', icon: 'pi pi-fw pi-chart-bar', route: 'admin.rekap.index' },
+                { label: 'Konfigurasi Insentif', icon: 'pi pi-fw pi-sliders-h', route: 'admin.insentif.index' },
+                { label: 'Hitung Insentif', icon: 'pi pi-fw pi-calculator', route: 'admin.insentif.hitung.index' },
+                { label: 'Log Audit', icon: 'pi pi-fw pi-history', route: 'admin.audit.index' },
+                { label: 'Status Integrasi', icon: 'pi pi-fw pi-server', route: 'admin.integrasi.index' },
+            ],
+        });
+    }
+
+    return menu;
+});
 </script>
 
 <template>

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\ApproverMappingController;
 use App\Http\Controllers\Admin\AuditLogController;
+use App\Http\Controllers\Admin\IncentiveCalculationController;
 use App\Http\Controllers\Admin\IncentiveConfigController;
 use App\Http\Controllers\Admin\IntegrationController;
 use App\Http\Controllers\Admin\PeriodController;
@@ -76,6 +77,9 @@ Route::middleware(['auth', 'active-role', 'two-factor'])->group(function () {
         Route::get('/integrasi', [IntegrationController::class, 'index'])->name('integrasi.index');
         Route::get('/konfigurasi-insentif', [IncentiveConfigController::class, 'index'])->name('insentif.index');
         Route::post('/konfigurasi-insentif', [IncentiveConfigController::class, 'update'])->name('insentif.update');
+        Route::get('/hitung-insentif', [IncentiveCalculationController::class, 'index'])->name('insentif.hitung.index');
+        Route::post('/hitung-insentif/plafon', [IncentiveCalculationController::class, 'plafon'])->name('insentif.hitung.plafon');
+        Route::post('/hitung-insentif/finalkan', [IncentiveCalculationController::class, 'finalkan'])->name('insentif.hitung.finalkan');
         Route::post('/target-individu', [IndividualTargetController::class, 'store'])->name('target.store');
     });
 
