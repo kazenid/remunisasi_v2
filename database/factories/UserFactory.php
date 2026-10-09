@@ -4,7 +4,6 @@ namespace Database\Factories;
 
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
@@ -13,11 +12,6 @@ use Illuminate\Support\Str;
 class UserFactory extends Factory
 {
     /**
-     * The current password being used by the factory.
-     */
-    protected static ?string $password;
-
-    /**
      * Define the model's default state.
      *
      * @return array<string, mixed>
@@ -25,21 +19,61 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->name(),
-            'email' => fake()->unique()->safeEmail(),
-            'email_verified_at' => now(),
-            'password' => static::$password ??= Hash::make('password'),
+            'sikep_user_id' => fake()->unique()->numberBetween(1, 999999),
+            'username' => fake()->unique()->numerify('1######'),
+            'nama' => fake()->name(),
+            'no_absen' => fake()->unique()->numberBetween(1000000, 1999999),
+            'is_admin' => false,
+            'role' => null,
+            'aktif' => true,
+            'last_sync_at' => now(),
             'remember_token' => Str::random(10),
         ];
     }
 
     /**
-     * Indicate that the model's email address should be unverified.
+     * State: user adalah Admin lokal (role+is_admin ditulis berpasangan).
      */
-    public function unverified(): static
+    public function admin(): static
     {
         return $this->state(fn (array $attributes) => [
-            'email_verified_at' => null,
+            'role' => User::ROLE_ADMIN,
+            'is_admin' => true,
+            'aktif' => true,
+        ]);
+    }
+
+    /**
+     * State: user ber-role Katimker.
+     */
+    public function katimker(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => User::ROLE_KATIMKER,
+            'is_admin' => false,
+            'aktif' => true,
+        ]);
+    }
+
+    /**
+     * State: user ber-role Kabid.
+     */
+    public function kabid(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => User::ROLE_KABID,
+            'is_admin' => false,
+            'aktif' => true,
+        ]);
+    }
+
+    /**
+     * State: user nonaktif.
+     */
+    public function nonaktif(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'aktif' => false,
         ]);
     }
 }
