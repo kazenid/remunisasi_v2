@@ -12,7 +12,7 @@ import ConfirmationService from 'primevue/confirmationservice';
 import ToastService from 'primevue/toastservice';
 import DialogService from 'primevue/dialogservice';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Sakai Laravel';
+const appName = import.meta.env.VITE_APP_NAME || 'TUKIMAN';
 
 createInertiaApp({
     title: (title) => title ? `${title} — ${appName}` : appName,

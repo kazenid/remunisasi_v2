@@ -5,7 +5,7 @@ import SelfieCapture from '@/Components/form/SelfieCapture.vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
-import { computed, ref } from 'vue';
+import { computed, ref, onBeforeUnmount } from 'vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -54,17 +54,29 @@ const form = useForm({
 // error "basi" dari kunjungan sebelumnya saat form pertama kali dibuka.
 
 // Lampiran selfie yang baru ditangkap (belum tersimpan).
+// Simpan pasangan { file, previewUrl } agar thumbnail bisa ditampilkan sebelum submit,
+// dan object URL dapat di-revoke saat dihapus / unmount (hindari memory leak).
 const selfieBaru = ref([]);
 
+// Sinkronkan field form dengan daftar File (object URL tidak ikut dikirim ke server).
+function syncSelfieForm() {
+    form.foto_selfie = selfieBaru.value.map((s) => s.file);
+}
+
 function onSelfie(file) {
-    selfieBaru.value.push(file);
-    form.foto_selfie = selfieBaru.value;
+    selfieBaru.value.push({ file, previewUrl: URL.createObjectURL(file) });
+    syncSelfieForm();
 }
 
 function hapusSelfieBaru(idx) {
-    selfieBaru.value.splice(idx, 1);
-    form.foto_selfie = selfieBaru.value;
+    const [dihapus] = selfieBaru.value.splice(idx, 1);
+    if (dihapus) URL.revokeObjectURL(dihapus.previewUrl);
+    syncSelfieForm();
 }
+
+onBeforeUnmount(() => {
+    selfieBaru.value.forEach((s) => URL.revokeObjectURL(s.previewUrl));
+});
 
 function onDokumen(event) {
     form.dokumen = Array.from(event.files ?? []);
@@ -236,8 +248,24 @@ function hapusLampiranLama(att) {
                     <span class="text-muted-color text-sm mb-2">Wajib saat pengajuan. Boleh ditambah sekarang. Maks {{ MAKS_SELFIE_MB }} MB per foto.</span>
                     <SelfieCapture :maxSizeMb="MAKS_SELFIE_MB" @captured="onSelfie" @tooLarge="onSelfieTerlaluBesar" />
 
-                    <div v-if="selfieBaru.length" class="flex flex-wrap gap-2 mt-2">
-                        <Chip v-for="(f, i) in selfieBaru" :key="i" :label="f.name" removable @remove="hapusSelfieBaru(i)" />
+                    <div v-if="selfieBaru.length" class="flex flex-wrap gap-3 mt-2">
+                        <div v-for="(s, i) in selfieBaru" :key="i" class="relative">
+                            <img
+                                :src="s.previewUrl"
+                                :alt="s.file.name"
+                                class="w-20 h-20 rounded-border object-cover border border-surface-200 dark:border-surface-700"
+                            />
+                            <Button
+                                icon="pi pi-times"
+                                severity="danger"
+                                rounded
+                                text
+                                size="small"
+                                class="absolute -top-2 -right-2 bg-surface-0 dark:bg-surface-800 shadow"
+                                aria-label="Hapus foto"
+                                @click="hapusSelfieBaru(i)"
+                            />
+                        </div>
                     </div>
                     <small v-if="form.errors.foto_selfie" class="text-red-500">{{ form.errors.foto_selfie }}</small>
                 </div>

@@ -6,7 +6,11 @@
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         {{-- Dynamic title via Inertia --}}
-        <title inertia>{{ config('app.name', 'Sakai Laravel') }}</title>
+        <title inertia>{{ config('app.name', 'TUKIMAN') }}</title>
+
+        {{-- Favicon --}}
+        <link rel="icon" type="image/png" href="/images/logo_rsud_bangil.png">
+        <link rel="apple-touch-icon" href="/images/logo_rsud_bangil.png">
 
         {{-- Fonts --}}
         <link rel="preconnect" href="https://fonts.googleapis.com">

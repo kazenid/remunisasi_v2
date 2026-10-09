@@ -6,30 +6,27 @@ const { toggleDarkMode, isDarkTheme } = useLayout();
 </script>
 
 <template>
-    <div class="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
-        <!-- Dark mode toggle -->
-        <button
+    <div class="fixed flex gap-4 top-8 right-8 z-50">
+        <!-- Dark / light mode toggle -->
+        <Button
             type="button"
-            class="layout-config-button"
-            @click="toggleDarkMode"
+            rounded
+            severity="secondary"
+            :icon="isDarkTheme ? 'pi pi-moon' : 'pi pi-sun'"
             :aria-label="isDarkTheme ? 'Switch to light mode' : 'Switch to dark mode'"
-        >
-            <i :class="['pi', isDarkTheme ? 'pi-sun' : 'pi-moon']"></i>
-        </button>
+            @click="toggleDarkMode"
+        />
 
         <!-- Theme configurator -->
         <div class="relative">
-            <button
-                v-styleclass="{ selector: '@next', enterFromClass: 'hidden', enterActiveClass: 'animate-fadein', leaveToClass: 'hidden', hideOnOutsideClick: true }"
+            <Button
+                icon="pi pi-palette"
                 type="button"
-                class="layout-config-button"
+                rounded
                 aria-label="Open theme configurator"
-            >
-                <i class="pi pi-palette"></i>
-            </button>
-            <div class="hidden absolute bottom-14 right-0 w-64">
-                <AppConfigurator />
-            </div>
+                v-styleclass="{ selector: '@next', enterFromClass: 'hidden', enterActiveClass: 'animate-slidedown', leaveToClass: 'hidden', hideOnOutsideClick: true }"
+            />
+            <AppConfigurator />
         </div>
     </div>
 </template>

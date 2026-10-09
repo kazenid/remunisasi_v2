@@ -1,15 +1,18 @@
 <script setup>
 import GuestLayout from '@/Layouts/GuestLayout.vue';
 import FloatingConfigurator from '@/Components/FloatingConfigurator.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, useForm } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
 defineOptions({ layout: GuestLayout });
 
 const form = useForm({
-    email: '',
+    login: '',
     password: '',
     remember: false,
 });
+
+const tahun = computed(() => new Date().getFullYear());
 
 const submit = () => {
     form.post(route('login'), {
@@ -19,72 +22,133 @@ const submit = () => {
 </script>
 
 <template>
-    <Head title="Sign In" />
+    <Head title="Masuk" />
     <FloatingConfigurator />
 
-    <div class="flex flex-col items-center justify-center">
-        <div style="border-radius:56px;padding:0.3rem;background:linear-gradient(180deg,var(--p-primary-color) 10%,rgba(33,150,243,0) 30%)">
-            <div class="w-full bg-surface-0 dark:bg-surface-900 py-20 px-8 sm:px-20" style="border-radius:53px">
-                <div class="text-center mb-8">
-                    <svg viewBox="0 0 54 40" fill="none" xmlns="http://www.w3.org/2000/svg" class="mb-8 w-16 shrink-0 mx-auto">
-                        <path fill-rule="evenodd" clip-rule="evenodd" d="M17.1637 19.2467C17.1566 19.4033 17.1529 19.561 17.1529 19.7194C17.1529 25.3503 21.7203 29.915 27.3546 29.915C32.9887 29.915 37.5561 25.3503 37.5561 19.7194C37.5561 19.5572 37.5524 19.3959 37.5449 19.2355C38.5617 19.0801 39.5759 18.9013 40.5867 18.6994L40.6926 18.6782C40.7191 19.0218 40.7326 19.369 40.7326 19.7194C40.7326 27.1036 34.743 33.0896 27.3546 33.0896C19.966 33.0896 13.9765 27.1036 13.9765 19.7194C13.9765 19.374 13.9896 19.0316 14.0154 18.6927L14.0486 18.6994C15.0837 18.9062 16.1223 19.0886 17.1637 19.2467ZM33.3284 11.4538C31.6493 10.2396 29.5855 9.52381 27.3546 9.52381C25.1195 9.52381 23.0524 10.2421 21.3717 11.4603C20.0078 11.3232 18.6475 11.1387 17.2933 10.907C19.7453 8.11308 23.3438 6.34921 27.3546 6.34921C31.36 6.34921 34.9543 8.10844 37.4061 10.896C36.0521 11.1292 34.692 11.3152 33.3284 11.4538ZM43.826 18.0518C43.881 18.6003 43.9091 19.1566 43.9091 19.7194C43.9091 28.8568 36.4973 36.2642 27.3546 36.2642C18.2117 36.2642 10.8 28.8568 10.8 19.7194C10.8 19.1615 10.8276 18.61 10.8816 18.0663L7.75383 17.4411C7.66775 18.1886 7.62354 18.9488 7.62354 19.7194C7.62354 30.6102 16.4574 39.4388 27.3546 39.4388C38.2517 39.4388 47.0855 30.6102 47.0855 19.7194C47.0855 18.9439 47.0407 18.1789 46.9536 17.4267L43.826 18.0518ZM44.2613 9.54743L40.9084 10.2176C37.9134 5.95821 32.9593 3.1746 27.3546 3.1746C21.7442 3.1746 16.7856 5.96385 13.7915 10.2305L10.4399 9.56057C13.892 3.83178 20.1756 0 27.3546 0C34.5281 0 40.8075 3.82591 44.2613 9.54743Z" fill="var(--p-primary-color)" />
-                    </svg>
-                    <div class="text-surface-900 dark:text-surface-0 text-3xl font-medium mb-4">Welcome to Sakai!</div>
-                    <span class="text-muted-color font-medium">Sign in to continue</span>
+    <div class="w-full min-h-screen flex items-stretch">
+        <div class="grid grid-cols-12 w-full">
+            <!-- Panel branding (kiri) -->
+            <div
+                class="hidden lg:flex lg:col-span-6 xl:col-span-7 flex-col justify-between p-10 xl:p-16 text-white relative overflow-hidden"
+                style="background: linear-gradient(135deg, var(--p-primary-600) 0%, var(--p-primary-500) 45%, var(--p-primary-400) 100%)"
+            >
+                <div class="flex items-center gap-3">
+                    <div class="inline-flex items-center justify-center bg-white/15 rounded-2xl p-3 backdrop-blur-sm">
+                        <img src="/images/logo_rsud_bangil.png" alt="Logo RSUD Bangil" class="h-10 w-auto" />
+                    </div>
+                    <div class="flex flex-col leading-tight">
+                        <span class="text-xl font-semibold tracking-wide">TUKIMAN</span>
+                        <span class="text-white/80 text-sm">Tugas dan Kinerja Manajemen</span>
+                    </div>
                 </div>
 
-                <form @submit.prevent="submit">
-                    <div class="mb-4">
-                        <label for="email" class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">Email</label>
-                        <InputText
-                            id="email"
-                            v-model="form.email"
-                            type="email"
-                            placeholder="Email address"
-                            class="w-full md:w-[30rem]"
-                            :class="{ 'p-invalid': form.errors.email }"
-                            autocomplete="username"
-                        />
-                        <small v-if="form.errors.email" class="text-red-500">{{ form.errors.email }}</small>
-                    </div>
+                <div class="max-w-xl">
+                    <h1 class="text-4xl xl:text-5xl font-bold leading-tight mb-4">
+                        Sistem Remunerasi Pegawai RSUD Bangil
+                    </h1>
+                    <p class="text-white/80 text-lg mb-8">
+                        Kelola kinerja, target, dan insentif pegawai dalam satu platform terintegrasi dengan data kepegawaian SIKEP.
+                    </p>
 
-                    <div class="mb-4">
-                        <label for="password" class="block text-surface-900 dark:text-surface-0 font-medium text-xl mb-2">Password</label>
-                        <Password
-                            id="password"
-                            v-model="form.password"
-                            placeholder="Password"
-                            :toggleMask="true"
-                            class="mb-4"
-                            fluid
-                            :feedback="false"
-                            :class="{ 'p-invalid': form.errors.password }"
-                            autocomplete="current-password"
-                        />
-                        <small v-if="form.errors.password" class="text-red-500">{{ form.errors.password }}</small>
-                    </div>
+                    <ul class="flex flex-col gap-4">
+                        <li class="flex items-start gap-3">
+                            <i class="pi pi-check-circle text-xl mt-0.5"></i>
+                            <span class="text-white/90">Masuk memakai akun SIKEP yang sudah Anda miliki.</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <i class="pi pi-chart-line text-xl mt-0.5"></i>
+                            <span class="text-white/90">Pantau capaian target dan perhitungan insentif secara transparan.</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <i class="pi pi-shield text-xl mt-0.5"></i>
+                            <span class="text-white/90">Terintegrasi aman dengan basis data kepegawaian rumah sakit.</span>
+                        </li>
+                    </ul>
+                </div>
 
-                    <div class="flex items-center justify-between mt-2 mb-8 gap-8">
-                        <div class="flex items-center">
-                            <Checkbox v-model="form.remember" id="remember" binary class="mr-2" />
-                            <label for="remember">Remember me</label>
+                <div class="text-white/70 text-sm">
+                    &copy; {{ tahun }} RSUD Bangil &middot; Pemerintah Kabupaten Pasuruan
+                </div>
+            </div>
+
+            <!-- Panel form (kanan) -->
+            <div class="col-span-12 lg:col-span-6 xl:col-span-5 flex items-center justify-center p-6 sm:p-10 bg-surface-50 dark:bg-surface-950">
+                <div class="w-full max-w-md">
+                    <!-- Header ringkas untuk mobile (panel kiri tersembunyi) -->
+                    <div class="flex flex-col items-center text-center mb-8 lg:items-start lg:text-left">
+                        <div class="inline-flex items-center justify-center mb-5 p-4 bg-surface-0 dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 shadow-sm">
+                            <img src="/images/logo_rsud_bangil.png" alt="Logo RSUD Bangil" class="h-14 w-auto" />
                         </div>
-                        <Link v-if="route().has('password.request')" :href="route('password.request')" class="font-medium no-underline text-right cursor-pointer text-primary hover:underline">
-                            Forgot password?
-                        </Link>
+                        <h2 class="text-surface-900 dark:text-surface-0 text-3xl font-semibold mb-2">Selamat datang</h2>
+                        <p class="text-muted-color">Masuk dengan akun SIKEP Anda untuk melanjutkan.</p>
                     </div>
 
-                    <Button
-                        type="submit"
-                        label="Sign In"
-                        class="w-full"
-                        :loading="form.processing"
-                    />
-                </form>
+                    <div class="card mb-0">
+                        <Message
+                            v-if="form.errors.login"
+                            severity="error"
+                            :closable="false"
+                            class="mb-6"
+                        >
+                            {{ form.errors.login }}
+                        </Message>
 
-                <div class="text-center mt-6 text-muted-color">
-                    Don't have an account?
-                    <Link :href="route('register')" class="text-primary font-medium ml-1 hover:underline">Sign up</Link>
+                        <form @submit.prevent="submit">
+                            <div class="flex flex-col gap-2 mb-5">
+                                <label for="login" class="font-medium text-surface-900 dark:text-surface-0">
+                                    Username / No. Absen / No. Pegawai
+                                </label>
+                                <IconField>
+                                    <InputIcon class="pi pi-user" />
+                                    <InputText
+                                        id="login"
+                                        v-model="form.login"
+                                        type="text"
+                                        placeholder="Masukkan username atau nomor Anda"
+                                        class="w-full"
+                                        :class="{ 'p-invalid': form.errors.login }"
+                                        autocomplete="username"
+                                        autofocus
+                                    />
+                                </IconField>
+                                <small v-if="form.errors.login" class="text-red-500">{{ form.errors.login }}</small>
+                            </div>
+
+                            <div class="flex flex-col gap-2 mb-5">
+                                <label for="password" class="font-medium text-surface-900 dark:text-surface-0">Password</label>
+                                <Password
+                                    id="password"
+                                    v-model="form.password"
+                                    placeholder="Masukkan password"
+                                    :toggleMask="true"
+                                    inputClass="w-full"
+                                    class="w-full"
+                                    fluid
+                                    :feedback="false"
+                                    :class="{ 'p-invalid': form.errors.password }"
+                                    autocomplete="current-password"
+                                />
+                                <small v-if="form.errors.password" class="text-red-500">{{ form.errors.password }}</small>
+                            </div>
+
+                            <div class="flex items-center mb-8">
+                                <Checkbox v-model="form.remember" inputId="remember" binary class="mr-2" />
+                                <label for="remember" class="text-surface-700 dark:text-surface-200 cursor-pointer">Ingat saya</label>
+                            </div>
+
+                            <Button
+                                type="submit"
+                                label="Masuk"
+                                icon="pi pi-sign-in"
+                                class="w-full"
+                                :loading="form.processing"
+                            />
+                        </form>
+                    </div>
+
+                    <p class="text-center text-muted-color text-sm mt-6 lg:hidden">
+                        &copy; {{ tahun }} RSUD Bangil &middot; Sistem Remunerasi Pegawai
+                    </p>
                 </div>
             </div>
         </div>

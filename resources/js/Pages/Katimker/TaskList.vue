@@ -19,19 +19,19 @@ const page = usePage();
 // Alasan: pengajuan yang gagal mengembalikan back()->with('error', ...) — sebuah redirect
 // 302→200 yang dianggap "sukses" oleh Inertia. Bila toast sukses dipicu onSuccess, ia akan
 // menyala bersamaan dengan flash error → dua notifikasi. Dengan hanya mengandalkan flash:
-// gagal → satu toast error, sukses → satu toast sukses. Tanpa `immediate` agar tidak
-// memunculkan toast "basi" dari kunjungan sebelumnya.
+// gagal → satu toast error, sukses → satu toast sukses.
+//
+// Pantau `flash.id` (nonce per-request dari HandleInertiaRequests): nilainya berubah tiap
+// kunjungan sehingga dua pesan gagal yang IDENTIK beruntun tetap memicu watcher → toast
+// selalu muncul. Bila kita memantau string pesan langsung, nilai yang sama tidak dianggap
+// berubah dan toast kedua tak pernah muncul. Tanpa `immediate` agar tidak memunculkan toast
+// "basi" dari kunjungan sebelumnya.
 watch(
-    () => page.props.flash?.error,
-    (msg) => {
-        if (msg) toast.add({ severity: 'error', summary: 'Gagal', detail: msg, life: 5000 });
-    },
-);
-
-watch(
-    () => page.props.flash?.success,
-    (msg) => {
-        if (msg) toast.add({ severity: 'success', summary: 'Berhasil', detail: msg, life: 3000 });
+    () => page.props.flash?.id,
+    () => {
+        const flash = page.props.flash ?? {};
+        if (flash.error) toast.add({ severity: 'error', summary: 'Gagal', detail: flash.error, life: 5000 });
+        if (flash.success) toast.add({ severity: 'success', summary: 'Berhasil', detail: flash.success, life: 3000 });
     },
 );
 
