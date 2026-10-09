@@ -61,12 +61,18 @@ class TaskDraftRequest extends FormRequest
             'tanggal.required' => 'Tanggal kegiatan wajib diisi.',
             'jenis.in' => 'Jenis tugas tidak valid.',
             'foto_selfie.*.image' => 'Foto selfie harus berupa gambar (JPEG/PNG).',
-            'foto_selfie.*.max' => 'Ukuran foto maksimal 5 MB.',
+            'foto_selfie.*.max' => 'Ukuran foto selfie maksimal 5 MB.',
+            // Rule implisit "uploaded" gagal ketika PHP menolak file (mis. UPLOAD_ERR_INI_SIZE:
+            // file melebihi upload_max_filesize) sehingga rule "max" tidak sempat jalan.
+            // Pesan ini menggantikan "failed to upload" generik dengan keterangan batas ukuran.
+            'foto_selfie.*.uploaded' => 'Gagal mengunggah foto selfie. Ukuran file mungkin melebihi batas server. Ukuran foto selfie maksimal 5 MB.',
             'dokumen.*.mimes' => 'Dokumen harus berformat pdf, doc, docx, xls, atau xlsx.',
             'dokumen.*.max' => 'Ukuran dokumen maksimal 10 MB.',
+            'dokumen.*.uploaded' => 'Gagal mengunggah dokumen. Ukuran file mungkin melebihi batas server. Ukuran dokumen maksimal 10 MB.',
             'bukti.*.file' => 'Berkas bukti tidak valid.',
             'bukti.*.mimes' => 'Tipe file tidak didukung (hanya jpg, png, pdf, doc, docx, xls, xlsx).',
-            'bukti.*.max' => 'Ukuran file maksimal 10 MB.',
+            'bukti.*.max' => 'Ukuran file maksimal 10 MB per berkas.',
+            'bukti.*.uploaded' => 'Gagal mengunggah berkas bukti. Ukuran file mungkin melebihi batas server. Ukuran berkas maksimal 10 MB.',
         ];
     }
 }

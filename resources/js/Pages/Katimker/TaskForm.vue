@@ -2,10 +2,10 @@
 import AppLayout from '@/Layouts/AppLayout.vue';
 import DurationInput from '@/Components/form/DurationInput.vue';
 import SelfieCapture from '@/Components/form/SelfieCapture.vue';
-import { Head, useForm, router, usePage } from '@inertiajs/vue3';
+import { Head, useForm, router } from '@inertiajs/vue3';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -15,8 +15,12 @@ const props = defineProps({
 
 const toast = useToast();
 const confirm = useConfirm();
-const page = usePage();
 const isEdit = computed(() => props.tugas !== null);
+
+// Satu sumber angka batas ukuran, sinkron dengan rule backend
+// (foto_selfie max:5120 = 5 MB, bukti max:10240 = 10 MB).
+const MAKS_SELFIE_MB = 5;
+const MAKS_BUKTI_MB = 10;
 
 const jenisOptions = [
     { label: 'Tugas Utama', value: 'utama' },
@@ -43,16 +47,11 @@ const form = useForm({
     bukti: [],
 });
 
-// Tampilkan flash error dari server (mis. gagal menyimpan file).
-watch(
-    () => page.props.flash?.error,
-    (pesan) => {
-        if (pesan) {
-            toast.add({ severity: 'error', summary: 'Gagal', detail: pesan, life: 6000 });
-        }
-    },
-    { immediate: true },
-);
+// Catatan: kesalahan simpan/validasi form ditampilkan lewat callback `onError` submit
+// (satu sumber toast). Jalur gagal simpan controller memakai `withErrors(...)` sehingga
+// Inertia memanggil `onError`; tidak ada watcher flash error di sini agar tidak muncul
+// dua toast pada kasus `withErrors()->with('error', ...)`, sekaligus mencegah toast
+// error "basi" dari kunjungan sebelumnya saat form pertama kali dibuka.
 
 // Lampiran selfie yang baru ditangkap (belum tersimpan).
 const selfieBaru = ref([]);
@@ -71,8 +70,46 @@ function onDokumen(event) {
     form.dokumen = Array.from(event.files ?? []);
 }
 
+function toastTerlaluBesar(nama, maksMb) {
+    toast.add({
+        severity: 'error',
+        summary: 'File terlalu besar',
+        detail: `Berkas "${nama}" melebihi ${maksMb} MB dan tidak diikutsertakan. Ukuran maksimal ${maksMb} MB per berkas.`,
+        life: 6000,
+    });
+}
+
+// Penjaga ukuran sisi klien untuk field bukti: file oversize ditolak sebelum submit.
 function onBukti(event) {
-    form.bukti = Array.from(event.files ?? []);
+    const batas = MAKS_BUKTI_MB * 1024 * 1024;
+    const diterima = [];
+    for (const f of Array.from(event.files ?? [])) {
+        if (f.size > batas) {
+            toastTerlaluBesar(f.name, MAKS_BUKTI_MB);
+        } else {
+            diterima.push(f);
+        }
+    }
+    form.bukti = diterima;
+}
+
+// PrimeVue FileUpload juga menolak file > maxFileSize lewat event ini.
+function onBuktiError(maksMb = MAKS_BUKTI_MB) {
+    toast.add({
+        severity: 'error',
+        summary: 'File terlalu besar',
+        detail: `Ada berkas yang melebihi ${maksMb} MB. Ukuran maksimal ${maksMb} MB per berkas.`,
+        life: 6000,
+    });
+}
+
+function onSelfieTerlaluBesar({ name, maxMb }) {
+    toast.add({
+        severity: 'error',
+        summary: 'File terlalu besar',
+        detail: `Foto "${name}" melebihi ${maxMb} MB. Ukuran foto selfie maksimal ${maxMb} MB.`,
+        life: 6000,
+    });
 }
 
 function hapusBukti(idx) {
@@ -196,8 +233,8 @@ function hapusLampiranLama(att) {
 
                 <div class="flex flex-col gap-2 mb-6">
                     <label class="font-medium">Foto Selfie <span class="text-red-500">*</span></label>
-                    <span class="text-muted-color text-sm mb-2">Wajib saat pengajuan. Boleh ditambah sekarang.</span>
-                    <SelfieCapture @captured="onSelfie" />
+                    <span class="text-muted-color text-sm mb-2">Wajib saat pengajuan. Boleh ditambah sekarang. Maks {{ MAKS_SELFIE_MB }} MB per foto.</span>
+                    <SelfieCapture :maxSizeMb="MAKS_SELFIE_MB" @captured="onSelfie" @tooLarge="onSelfieTerlaluBesar" />
 
                     <div v-if="selfieBaru.length" class="flex flex-wrap gap-2 mt-2">
                         <Chip v-for="(f, i) in selfieBaru" :key="i" :label="f.name" removable @remove="hapusSelfieBaru(i)" />
@@ -207,17 +244,19 @@ function hapusLampiranLama(att) {
 
                 <div class="flex flex-col gap-2 mb-6">
                     <label class="font-medium">Bukti (Foto / Dokumen) <span class="text-muted-color font-normal">(opsional)</span></label>
-                    <span class="text-muted-color text-sm mb-2">Bisa pilih beberapa file sekaligus: jpg, png, pdf, doc, docx, xls, xlsx (maks 10 MB per file).</span>
+                    <span class="text-muted-color text-sm mb-2">Bisa pilih beberapa file sekaligus: jpg, png, pdf, doc, docx, xls, xlsx (maks {{ MAKS_BUKTI_MB }} MB per file).</span>
                     <FileUpload
                         mode="basic"
                         name="bukti[]"
                         accept="image/jpeg,image/png,application/pdf,.doc,.docx,.xls,.xlsx"
-                        :maxFileSize="10485760"
+                        :maxFileSize="MAKS_BUKTI_MB * 1024 * 1024"
                         :auto="false"
                         chooseLabel="Pilih Foto/Dokumen"
+                        :invalidFileSizeMessage="`Ukuran berkas melebihi ${MAKS_BUKTI_MB} MB.`"
                         customUpload
                         multiple
                         @select="onBukti"
+                        @error="onBuktiError()"
                     />
 
                     <div v-if="form.bukti.length" class="flex flex-wrap gap-2 mt-2">

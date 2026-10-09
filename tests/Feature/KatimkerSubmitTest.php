@@ -99,7 +99,10 @@ class KatimkerSubmitTest extends TestCase
         $this->from(route('katimker.tugas.index'))
             ->post(route('katimker.tugas.submit', $task->id))
             ->assertRedirect(route('katimker.tugas.index'))
-            ->assertSessionHas('error');
+            ->assertSessionHas('error')
+            // Bug 2 (sisi server): pengajuan gagal TIDAK boleh menitipkan flash success,
+            // sehingga frontend tidak dapat memunculkan toast sukses palsu.
+            ->assertSessionMissing('success');
 
         $this->assertSame('draf', $task->refresh()->status);
     }

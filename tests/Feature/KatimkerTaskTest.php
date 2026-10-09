@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Requests\TaskDraftRequest;
 use App\Models\TaskAttachment;
 use App\Models\TaskReport;
 use App\Models\User;
@@ -137,6 +138,60 @@ class KatimkerTaskTest extends TestCase
             ->assertSessionHasErrors('bukti.0');
 
         $this->assertSame(0, TaskReport::count());
+    }
+
+    public function test_selfie_oversize_menampilkan_pesan_ukuran(): void
+    {
+        Storage::fake('local');
+        $this->actingAsKatimker();
+
+        $this->from(route('katimker.tugas.create'))
+            ->post(route('katimker.tugas.store'), [
+                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'Selfie besar',
+                'durasi_jam' => 1, 'durasi_menit' => 0,
+                'foto_selfie' => [UploadedFile::fake()->image('big.jpg')->size(6000)], // 6 MB > 5 MB
+            ])
+            ->assertSessionHasErrors('foto_selfie.0');
+
+        // Pesan menyebut batas 5 MB dan BUKAN pesan generik "failed to upload".
+        $pesan = session('errors')->get('foto_selfie.0')[0];
+        $this->assertStringContainsString('5 MB', $pesan);
+        $this->assertStringNotContainsStringIgnoringCase('failed to upload', $pesan);
+
+        $this->assertSame(0, TaskReport::count());
+    }
+
+    public function test_bukti_oversize_menampilkan_pesan_ukuran(): void
+    {
+        Storage::fake('local');
+        $this->actingAsKatimker();
+
+        $this->from(route('katimker.tugas.create'))
+            ->post(route('katimker.tugas.store'), [
+                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'Bukti besar',
+                'durasi_jam' => 1, 'durasi_menit' => 0,
+                'bukti' => [UploadedFile::fake()->create('big.pdf', 11000, 'application/pdf')], // > 10 MB
+            ])
+            ->assertSessionHasErrors('bukti.0');
+
+        // Pesan menyebut batas 10 MB dan BUKAN pesan generik "failed to upload".
+        $pesan = session('errors')->get('bukti.0')[0];
+        $this->assertStringContainsString('10 MB', $pesan);
+        $this->assertStringNotContainsStringIgnoringCase('failed to upload', $pesan);
+
+        $this->assertSame(0, TaskReport::count());
+    }
+
+    public function test_pesan_uploaded_kustom_terdaftar_untuk_foto_selfie(): void
+    {
+        // Backstop Bug 1 kasus (b): bila PHP menolak file (UPLOAD_ERR_INI_SIZE), rule implisit
+        // "uploaded" yang gagal — pesan kustomnya harus menyebut batas MB, bukan teks generik.
+        $pesan = (new TaskDraftRequest)->messages();
+
+        $this->assertArrayHasKey('foto_selfie.*.uploaded', $pesan);
+        $this->assertStringContainsString('5 MB', $pesan['foto_selfie.*.uploaded']);
+        $this->assertArrayHasKey('bukti.*.uploaded', $pesan);
+        $this->assertStringContainsString('10 MB', $pesan['bukti.*.uploaded']);
     }
 
     public function test_edit_memuat_daftar_bukti_dengan_url(): void
