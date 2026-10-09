@@ -92,7 +92,7 @@ function logout() {
                             </span>
                             <div class="min-w-0">
                                 <div class="font-medium text-surface-900 dark:text-surface-0 truncate">{{ user?.nama ?? '-' }}</div>
-                                <div class="text-sm text-muted-color truncate">{{ user?.username }}<template v-if="user?.no_absen"> · {{ user.no_absen }}</template></div>
+                                <div class="text-sm text-muted-color truncate">{{ user?.username }}</div>
                             </div>
                         </div>
                         <div v-if="peran.length" class="flex flex-wrap gap-1 mb-3">

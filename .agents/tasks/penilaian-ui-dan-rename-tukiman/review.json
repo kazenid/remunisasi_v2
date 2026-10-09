@@ -1,0 +1,40 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    {
+      "label": "Scope creep tak terdokumentasi",
+      "severity": "blocking",
+      "confidence": "confirmed",
+      "detail": "Commit c063abe membundel perubahan besar di luar enam item: redesign Login (rename field email->login + panel branding), rewrite auth.user di HandleInertiaRequests (foto_url/roles/flag 2FA), panel pengguna+logout di AppTopbar, rewrite AppFooter, dan perubahan .env.example (DB pgsql->mysql + blok SIKEP). Semuanya di luar enam item dan tidak didokumentasikan per-item di verification.md. Melanggar kriteria 'blast radius tetap terkungkung, tanpa refactor tak terkait'. Pisahkan ke commit/task sendiri atau dokumentasikan & setujui eksplisit sebelum merge.",
+      "files": [
+        "app/Http/Middleware/HandleInertiaRequests.php",
+        "resources/js/Pages/Auth/Login.vue",
+        "resources/js/layout/AppTopbar.vue",
+        "resources/js/layout/AppFooter.vue",
+        ".env.example"
+      ]
+    },
+    {
+      "label": "Topbar no_absen dead reference",
+      "severity": "minor",
+      "confidence": "confirmed",
+      "detail": "AppTopbar.vue me-render {{ user.no_absen }} di balik v-if=\"user?.no_absen\", tetapi payload auth.user di HandleInertiaRequests::share() tidak mengirim no_absen. Tidak crash (optional chaining), tapi segmen itu tak pernah tampil. Hapus referensi atau tambahkan no_absen ke share payload.",
+      "files": ["resources/js/layout/AppTopbar.vue", "app/Http/Middleware/HandleInertiaRequests.php"]
+    },
+    {
+      "label": "ReviewDetail toast kontradiktif saat approve gagal",
+      "severity": "minor",
+      "confidence": "likely",
+      "detail": "Pada ReviewDetail.vue, onSuccess menampilkan toast sukses ('Disetujui'/'Ditolak') sementara watcher flash.id menampilkan toast error pada jalur back()->with('error') (302->200 yang dianggap sukses Inertia). Pola ini sudah ada sebelum item 4 (watcher dialihkan dari flash.error ke flash.id, perilaku error-only dipertahankan) jadi bukan regresi baru, tapi menyesatkan. Samakan dengan pola flash-only TaskList agar kegagalan hanya memunculkan satu toast error.",
+      "files": ["resources/js/Pages/Kabid/ReviewDetail.vue"]
+    },
+    {
+      "label": "Diagnosa root-cause item 5 keliru di dokumen",
+      "severity": "informational",
+      "confidence": "confirmed",
+      "detail": "Penyebab stuck toggle bukan animate-scalein/animate-fadeout (kode lama FloatingConfigurator memakai animate-fadein yang terdefinisi di app.css), melainkan wrapper 'hidden' berlapis di sekitar AppConfigurator. Perbaikan nyata = retarget @next langsung ke root config-panel. Perilaku akhir sudah benar; koreksi narasi plan/verification agar iterasi berikutnya tidak salah arah.",
+      "files": ["resources/js/Components/FloatingConfigurator.vue"]
+    }
+  ],
+  "reviewDoc": "f:\\LARAVEL\\remunisasi_v2\\.agents\\tasks\\penilaian-ui-dan-rename-tukiman\\review.md"
+}

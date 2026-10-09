@@ -59,7 +59,6 @@ const jenisBerubahApprove = computed(() => approveForm.jenis !== props.tugas.jen
 function ubahJenis() {
     jenisForm.post(route('kabid.penilaian.jenis', props.tugas.id), {
         preserveScroll: true,
-        onSuccess: () => toast.add({ severity: 'success', summary: 'Jenis diperbarui', life: 3000 }),
     });
 }
 
@@ -67,23 +66,25 @@ const totalDisetujui = computed(() => (approveForm.durasi_jam ?? 0) * 60 + (appr
 const dikurangi = computed(() => totalDisetujui.value < props.tugas.durasi_diajukan_menit);
 
 function setujui() {
-    approveForm.post(route('kabid.penilaian.approve', props.tugas.id), {
-        onSuccess: () => toast.add({ severity: 'success', summary: 'Disetujui', detail: 'Penilaian tersimpan.', life: 3000 }),
-    });
+    approveForm.post(route('kabid.penilaian.approve', props.tugas.id));
 }
 
 function tolak() {
-    rejectForm.post(route('kabid.penilaian.reject', props.tugas.id), {
-        onSuccess: () => toast.add({ severity: 'success', summary: 'Ditolak', detail: 'Tugas dikembalikan ke Katimker.', life: 3000 }),
-    });
+    rejectForm.post(route('kabid.penilaian.reject', props.tugas.id));
 }
 
-// Pantau `flash.id` (nonce per-request) agar pesan gagal identik beruntun tetap memicu toast.
+// Umpan balik toast digerakkan oleh flash server (pola flash-only seperti TaskList),
+// bukan oleh `onSuccess`. Sebab gagal mengembalikan `back()->with('error')` — sebuah
+// 302→200 yang dianggap "sukses" oleh Inertia — sehingga `onSuccess` + watcher error
+// akan memunculkan dua toast kontradiktif (sukses + gagal) sekaligus. Dengan hanya
+// mengandalkan flash, kegagalan = satu toast error, keberhasilan = satu toast sukses.
+// `flash.id` (nonce per-request) memastikan pesan identik beruntun tetap memicu watcher.
 watch(
     () => page.props.flash?.id,
     () => {
-        const msg = page.props.flash?.error;
-        if (msg) toast.add({ severity: 'error', summary: 'Gagal', detail: msg, life: 5000 });
+        const flash = page.props.flash ?? {};
+        if (flash.error) toast.add({ severity: 'error', summary: 'Gagal', detail: flash.error, life: 5000 });
+        if (flash.success) toast.add({ severity: 'success', summary: 'Berhasil', detail: flash.success, life: 3000 });
     },
 );
 </script>
