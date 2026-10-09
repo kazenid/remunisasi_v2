@@ -1,0 +1,8 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    "Sumber MIME tidak seragam: validasi pakai `mimes` (ekstensi), pemetaan tipe pakai `getMimeType()` (konten server), kolom `mime` tersimpan pakai `getClientMimeType()` (klien, bisa dipalsukan). Tidak memblokir karena akses digerbang policy; pertimbangkan menyimpan `getMimeType()` ke kolom `mime` agar `is_image` tidak bisa disetir ekstensi/klien.",
+    "Field error kegagalan storage selalu `bukti`: bila `Storage` gagal untuk file dari `foto_selfie`/`dokumen`, error tetap diikat ke field `bukti`. Flash `error` umum tetap muncul sehingga pengguna tahu; penandaan field spesifik bisa menyesatkan. Kosmetik."
+  ],
+  "reviewDoc": "f:\\LARAVEL\\remunisasi_v2\\.agents\\tasks\\fix-upload-bukti-tugas\\review.md"
+}

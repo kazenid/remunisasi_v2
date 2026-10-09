@@ -64,6 +64,31 @@ return [
             ]) : [],
         ],
 
+        /*
+        | SIKEP (bangil_kepegawaian) — READ ONLY.
+        | Koneksi sumber data kepegawaian. TIDAK PERNAH ditulis:
+        | tidak dipakai migration/seeder, dan model SikepModel memblokir write.
+        | Charset latin1 mengikuti skema asli SIKEP.
+        */
+        'sikep' => [
+            'driver' => 'mysql',
+            'host' => env('SIKEP_DB_HOST', '10.20.1.116'),
+            'port' => env('SIKEP_DB_PORT', '2651'),
+            'database' => env('SIKEP_DB_DATABASE', 'bangil_kepegawaian'),
+            'username' => env('SIKEP_DB_USERNAME', 'ws_sikep'),
+            'password' => env('SIKEP_DB_PASSWORD', ''),
+            'unix_socket' => env('SIKEP_DB_SOCKET', ''),
+            'charset' => env('SIKEP_DB_CHARSET', 'latin1'),
+            'collation' => env('SIKEP_DB_COLLATION', 'latin1_swedish_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => false,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
         'mariadb' => [
             'driver' => 'mariadb',
             'url' => env('DB_URL'),

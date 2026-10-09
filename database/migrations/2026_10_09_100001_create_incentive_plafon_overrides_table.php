@@ -21,7 +21,7 @@ return new class extends Migration
             $table->unsignedInteger('di_set_oleh')->nullable(); // sikep_user_id
             $table->timestamps();
 
-            $table->unique(['katimker_sikep_user_id', 'tahun', 'bulan']);
+            $table->unique(['katimker_sikep_user_id', 'tahun', 'bulan'], 'plafon_override_unik');
         });
     }
 

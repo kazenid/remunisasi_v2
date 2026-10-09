@@ -11,20 +11,18 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // User lokal = mirror ringan dari ms_user SIKEP.
+        // Autentikasi dilakukan terhadap SIKEP; password TIDAK disimpan di sini.
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
+            $table->unsignedInteger('sikep_user_id')->unique();
+            $table->string('username')->nullable();
+            $table->string('nama')->nullable();
+            $table->unsignedInteger('no_absen')->nullable()->index();
+            $table->boolean('is_admin')->default(false);
+            $table->timestamp('last_sync_at')->nullable();
             $table->rememberToken();
             $table->timestamps();
-        });
-
-        Schema::create('password_reset_tokens', function (Blueprint $table) {
-            $table->string('email')->primary();
-            $table->string('token');
-            $table->timestamp('created_at')->nullable();
         });
 
         Schema::create('sessions', function (Blueprint $table) {
@@ -43,7 +41,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('users');
-        Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
     }
 };

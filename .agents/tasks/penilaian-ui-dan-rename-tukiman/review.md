@@ -1,125 +1,95 @@
-# Penilaian selfie UI, upload-toast fix, dan rename TUKIMAN
+# Penilaian selfie UI, upload-toast fix, dan rename TUKIMAN — review iterasi 2
 
-Commit `c063abe` mengerjakan enam item: render selfie sebagai foto berframe + modal in-app di halaman penilaian, thumbnail preview selfie di create-task, perbaikan toast gagal yang tak muncul pada kegagalan identik beruntun, perbaikan toggle selektor tema di Login, dan rename user-facing ke "TUKIMAN". Keenam item itu sendiri diimplementasikan dengan benar dan konsisten dengan konvensi Sakai/PrimeVue + Tailwind + Inertia, serta memakai Bahasa Indonesia pada teks pengguna. Masalah utama bukan pada keenam item, melainkan pada **blast radius**: commit yang sama membawa serta sejumlah perubahan besar yang tidak terdaftar di antara enam item dan tidak didokumentasikan per-item di `verification.md` — redesign penuh halaman Login (rename field `email`→`login`, panel branding), penulisan ulang payload `auth.user` (foto_url/roles/2FA), panel pengguna + logout di topbar, penulisan ulang footer, dan perubahan `.env.example` (DB pgsql→mysql + blok SIKEP). Perubahan-perubahan ini tampak nyata dan berfungsi (didukung controller/服务 untracked di working tree), tetapi berasal dari task lain dan mencemari diff ini.
+Review ini menilai iterasi KEDUA (commit `b7c2ac8`) yang menanggapi `review.json` iterasi 1 (verdict CHANGES_REQUESTED, satu temuan blocking + tiga non-blocking). Enam item fungsional sudah dikonfirmasi benar pada review iterasi 1 dan tidak berubah di iterasi 2; fokus di sini adalah apakah keempat temuan sebelumnya benar-benar ditangani dan apakah ada regresi/temuan baru dari diff iterasi 2. Keempat temuan ditangani: `no_absen` dead reference dihapus dari topbar, toast kontradiktif approve/reject disamakan ke pola flash-only, narasi root-cause item 5 dikoreksi, dan temuan blocking scope-creep diselesaikan lewat dokumentasi per-file + persetujuan pemilik workflow (opsi B, bukan revert) karena perubahan tersebut terbukti load-bearing terhadap backend yang sudah masuk kode.
 
 Watch for:
-- **Scope creep (confirmed)** — commit membundel redesign Login, rewrite `auth.user`, panel pengguna topbar, rewrite footer, dan perubahan DB/SIKEP di `.env.example` yang berada di luar enam item dan tidak didokumentasikan item-per-item. Ini melanggar kriteria "blast radius tetap terkungkung, tanpa refactor tak terkait".
-- **Topbar `no_absen` dead reference (confirmed)** — `AppTopbar.vue` me-render `{{ user.no_absen }}` tetapi payload `auth.user` di `HandleInertiaRequests` tidak mengirim `no_absen`; segmen itu tak pernah tampil.
-- **ReviewDetail: toast kontradiktif saat approve gagal (likely, pre-existing)** — `onSuccess` menampilkan toast "Disetujui" sementara watcher `flash.id` menampilkan toast "Gagal" pada jalur `back()->with('error')`. Pola ini sudah ada sebelum item 4 (watcher dialihkan dari `flash.error` ke `flash.id`, perilaku error-only dipertahankan), jadi bukan regresi baru, tetapi tetap menyesatkan.
+- **Scope-creep diselesaikan lewat persetujuan, bukan revert (confirmed)** — redesign Login/`auth.user`/topbar/footer/.env.example tetap di commit yang sama; diterima karena load-bearing (`LoginController` memvalidasi field `login`, bukan `email`) dan pemilik workflow menyetujui opsi B. Bukan blocking lagi, tapi diff ini tetap mencampur concern dari task lain.
 
-**Verdict**: CHANGES_REQUESTED
+**Verdict**: APPROVED
 
 ## High-level view
 
-Keenam item fungsional benar. Serializer penilaian menambah `url`/`is_image`/`mime` dari atribut model yang sudah ter-`append`; `ReviewDetail.vue` mencabang lampiran pada diskriminator yang tepat (`tipe === 'foto_selfie'`), merender selfie sebagai `<img>` berframe yang membuka PrimeVue `Dialog` in-app, dan mempertahankan dokumen sebagai `<a target="_blank">`. Create-task menyimpan `{ file, previewUrl }`, me-revoke object URL saat hapus/unmount, dan hanya mengirim `File` ke server.
+Keempat temuan iterasi 1 ditangani dengan benar. Temuan blocking (scope creep) tidak di-revert; investigasi menunjukkan perubahan `email`→`login` di `Login.vue`, rewrite `auth.user`, panel pengguna topbar, dan blok SIKEP di `.env.example` adalah penyelarasan frontend dengan backend yang sudah ada di working tree (dari task `login-redesign-and-employee-photo`, `admin-2fa`, `role-manual-sikep`). `LoginController::store()` memvalidasi `'login' => 'required|string'` dan model `User` memakai `nama`/`username`/`roles()`/`token_pegawai` — merevert UI ke bentuk lama akan merusak autentikasi. Pemilik workflow menyetujui penyelesaian via dokumentasi per-file (opsi B). Ini resolusi yang sah dalam batasan task: user yang authoritative tidak melarang penyelarasan ini, dan merusak login jauh lebih berbahaya daripada diff yang padat.
 
-Perbaikan toast (item 4) memakai nonce `flash.id` (`Str::uuid()` per-request) di middleware share, dan watcher di `TaskList.vue` dialihkan untuk memantau `flash.id` alih-alih string pesan. Mekanisme ini benar: dua pesan gagal identik beruntun kini selalu memicu watcher. Invariant single-toast dan larangan `immediate` dipertahankan di TaskList.
+Temuan 2 (dead reference `no_absen` di `AppTopbar.vue`) dihapus; grep mengonfirmasi `no_absen` hanya tersisa di halaman Admin yang memang mengirim field itu di payload-nya (di luar scope, pre-existing).
 
-Item 5 (toggle tema Login) berperilaku benar di kode akhir — panel menutup saat klik ulang dan klik-luar — tetapi penyebab sebenarnya berbeda dari diagnosa plan: kode lama memakai `animate-fadein` (yang terdefinisi), bukan `animate-scalein`/`animate-fadeout`. Yang benar-benar memperbaiki adalah restrukturisasi `@next` agar menunjuk langsung ke root `AppConfigurator` (`config-panel hidden`), bukan ke wrapper `hidden` berlapis seperti sebelumnya.
+Temuan 3 (toast kontradiktif) diselesaikan dengan membuang semua `onSuccess` toast dari `setujui()`/`tolak()`/`ubahJenis()` dan mengandalkan flash server. Jalur gagal (`back()->with('error')`, 302→200) kini hanya memunculkan satu toast error lewat watcher `flash.id`. Karena approve/reject sukses me-redirect ke `kabid.penilaian.index`, watcher `flash.id` yang sama ditambahkan di `ReviewList.vue` agar flash `success` tampil satu kali di halaman tujuan; `ubahJenis()` yang `back()->with('success')` ditangani watcher di `ReviewDetail.vue`. Pemetaan controller→halaman tujuan cocok dengan penempatan watcher.
 
-Rename TUKIMAN (item 6) tuntas di titik user-facing yang diminta (topbar, footer, login, tab title via `app.js` + `app.blade.php`, `config/app.php`, `.env.example`) tanpa menyentuh folder/composer/DB/namespace/route. Namun commit yang sama memuat banyak perubahan non-rename pada file yang sama (Login, topbar, footer), sehingga sulit memisahkan rename dari fitur lain.
+Temuan 4 (informational) sekadar koreksi narasi di plan/verification; perilaku toggle tema Login tidak berubah dan tetap benar.
 
-Masalah yang menonjol adalah blast radius: beberapa subsistem besar yang tak termasuk enam item ikut ter-commit. Secara perilaku kode koheren dan evidence verifikasi (160 passed, build sukses) ada, tetapi pencampuran concern membuat diff sulit di-review/revert dan menyalahi batasan scope yang diminta.
+Mekanisme flash tetap konsisten lintas tiga halaman (`TaskList`, `ReviewDetail`, `ReviewList`): `flash.id` adalah nonce `Str::uuid()` yang dievaluasi eager tiap request, sehingga pesan identik beruntun selalu memicu watcher; tak ada `immediate` sehingga tak ada toast basi. Tidak ada regresi baru dari diff iterasi 2.
 
 <details>
-<summary>Issues (4)</summary>
+<summary>Issues (1)</summary>
 
-1. **Scope creep tak terdokumentasi** — redesign Login (`email`→`login` + panel branding), rewrite `auth.user` (foto_url/roles/2FA), panel pengguna+logout topbar, rewrite footer, dan perubahan DB/SIKEP di `.env.example` berada di luar enam item. Pisahkan ke commit/task sendiri (mis. `login-redesign-and-employee-photo`) atau dokumentasikan eksplisit dan setujui sebagai bagian scope sebelum merge.
-2. **Topbar `no_absen` dead reference** — `AppTopbar.vue` me-render `{{ user.no_absen }}` yang tidak pernah ada di payload `auth.user`. Hapus referensi itu atau tambahkan `no_absen` ke `HandleInertiaRequests::share()`.
-3. **ReviewDetail toast kontradiktif saat approve gagal** — `onSuccess` ("Disetujui") menyala bersama toast error dari watcher `flash.id` pada `back()->with('error')`. Samakan dengan pola TaskList (andalkan flash saja, tanpa toast `onSuccess`) agar kegagalan hanya memunculkan satu toast error.
-4. **Diagnosa root-cause item 5 keliru di dokumen** — penyebab stuck toggle bukan `animate-scalein`/`animate-fadeout` (kode lama memakai `animate-fadein` yang terdefinisi) melainkan wrapper `hidden` berlapis; perbaiki narasi plan/verification agar tidak menyesatkan iterasi berikutnya. (Perilaku akhir sudah benar.)
+1. **Diff mencampur concern lintas task (non-blocking, disetujui)** — commit `c063abe` memuat perubahan non-rename (redesign Login, rewrite `auth.user`, panel topbar, footer, blok SIKEP di `.env.example`) yang load-bearing untuk backend yang sudah ada. Sudah didokumentasikan per-file di `verification.md` dan disetujui pemilik workflow (opsi B). Tidak ada aksi lanjutan yang diminta; dicatat agar jelas bahwa diff ini bukan rename murni.
 
 </details>
 
 <details>
 <summary>Details</summary>
 
-### Serializer penilaian dan diskriminator lampiran (item 1 + 2)
+### Temuan 1 (blocking) — scope creep diselesaikan via dokumentasi + persetujuan
 
-`ReviewController@show` memetakan tiap attachment dengan `id`, `tipe`, `nama_asli`, `url`, `is_image`, `mime`. `url`/`is_image` dibaca dari atribut turunan `TaskAttachment` yang sudah di-`append`, jadi tidak ada query tambahan dan `url` menunjuk ke `route('bukti.show', id)` yang terotorisasi lewat policy. Di `ReviewDetail.vue` pemisahan memakai diskriminator yang benar:
+Opsi A reviewer iterasi 1 (revert/pisahkan perubahan out-of-scope) akan merusak autentikasi: `LoginController::store()` memvalidasi `'login' => 'required|string'` lalu memanggil `SikepAuthService::attempt($credentials['login'], ...)`, dan model `User` tidak lagi memakai `name`/`email`. Mengembalikan `Login.vue` ke field `email` atau `auth.user` ke bentuk `{id,name,email}` akan memutus login dan menampilkan payload yang tidak cocok dengan `AppTopbar`/middleware role. Karena merevert mengubah perilaku di luar enam item (dan merusaknya), penyelesaian dieskalasi dan pemilik workflow menyetujui opsi B: tidak revert, dokumentasikan per-file bahwa perubahan ini adalah penyelarasan dengan task sebelumnya. `verification.md` iterasi 2 memuat pemetaan per-file yang eksplisit. Dalam batasan task (pesan user authoritative, larangan mengubah perilaku di luar scope tanpa persetujuan), resolusi ini sah dan bukan lagi blocking.
 
-```js
-const selfies = computed(() => props.tugas.attachments.filter((a) => a.tipe === 'foto_selfie'));
-const dokumen = computed(() => props.tugas.attachments.filter((a) => a.tipe !== 'foto_selfie'));
+### Temuan 2 (minor) — dead reference `no_absen`
+
+```diff
+-<div class="text-sm text-muted-color truncate">{{ user?.username }}<template v-if="user?.no_absen"> · {{ user.no_absen }}</template></div>
++<div class="text-sm text-muted-color truncate">{{ user?.username }}</div>
 ```
 
-Selfie dirender `<img class="w-40 h-40 rounded-border object-cover border border-surface-200 dark:border-surface-700">` dalam `<button>`; dokumen tetap `<a :href="att.url" target="_blank" rel="noopener">` + ikon + `<Tag>`. Dark mode dan teks Indonesia ("Bukti Selfie", "Dokumen", "Tidak ada bukti.") tertangani.
+`auth.user` tidak pernah mengirim `no_absen`, jadi penghapusan tak mengubah tampilan. Grep mengonfirmasi `no_absen` hanya tersisa di `Admin/Pengguna.vue` dan `Admin/ApproverMapping.vue`, yang mengambil data dari payload daftar pegawai (bukan `auth.user`) — di luar scope dan tidak disentuh.
 
-### Modal in-app untuk selfie (item 3b)
+### Temuan 3 (minor) — toast kontradiktif approve/reject disamakan ke flash-only
 
-Klik thumbnail memanggil `bukaSelfie(att)` → `selfieDialog = true` → PrimeVue `<Dialog modal dismissableMask>` menampilkan gambar penuh di dalam aplikasi; dokumen tidak diubah dan tetap membuka tab baru. Komponen diambil global, tidak ada import manual.
+`onSuccess` toast dibuang dari ketiga aksi:
 
-### Thumbnail preview create-task (item 3)
-
-`selfieBaru` menyimpan `{ file, previewUrl }` dengan `previewUrl = URL.createObjectURL(file)`. `syncSelfieForm()` memetakan ke daftar `File` saja sehingga object URL tidak dikirim ke server. `hapusSelfieBaru` me-`revokeObjectURL` berkas yang dihapus dan `onBeforeUnmount` me-revoke sisa — tidak ada kebocoran. Penjaga ukuran (`toastTerlaluBesar`) tidak disentuh, jadi batas 5 MB/10 MB dan pesan oversize tetap utuh. Fix upload sebelumnya tidak teregresi.
-
-### Mekanisme flash nonce (item 4)
-
-```php
-'flash' => [
-    'id' => (string) Str::uuid(),
-    'success' => fn () => $request->session()->get('success'),
-    'error'   => fn () => $request->session()->get('error'),
-    ...
-],
+```diff
+-function setujui() {
+-    approveForm.post(route('kabid.penilaian.approve', props.tugas.id), {
+-        onSuccess: () => toast.add({ severity: 'success', summary: 'Disetujui', ... }),
+-    });
+-}
++function setujui() {
++    approveForm.post(route('kabid.penilaian.approve', props.tugas.id));
++}
 ```
 
-`flash.id` dievaluasi eager tiap request sehingga selalu berubah. `TaskList.vue` memantau `flash.id` dan di handler membaca `flash.error`/`flash.success`:
+Watcher `flash.id` di `ReviewDetail.vue` kini menampilkan `flash.error` DAN `flash.success`. Peta jalur controller→halaman cocok dengan penempatan watcher:
 
-```js
-watch(() => page.props.flash?.id, () => {
-    const flash = page.props.flash ?? {};
-    if (flash.error)   toast.add({ severity: 'error',   ... });
-    if (flash.success) toast.add({ severity: 'success', ... });
-});
-```
+- `approve()`/`reject()` sukses → `redirect()->route('kabid.penilaian.index')->with('success', ...)` → ditangkap watcher baru di `ReviewList.vue`.
+- `approve()`/`reject()` gagal → `back()->with('error', ...)` → tetap di `ReviewDetail.vue`, satu toast error.
+- `ubahJenis()` sukses → `back()->with('success', 'Jenis tugas diperbarui.')` → ditangkap watcher di `ReviewDetail.vue`.
 
-Dua kegagalan identik beruntun kini memicu watcher karena `id` berubah; sukses tetap satu toast; tanpa `immediate` sehingga tidak ada toast basi. Di TaskList invariant single-toast terjaga karena tidak ada toast `onSuccess`.
+Hasilnya: gagal = satu toast error, sukses = satu toast sukses, tidak pernah keduanya sekaligus. Watcher di `ReviewList.vue` identik polanya dengan `TaskList.vue` dan `ReviewDetail.vue` (baca `flash.error`/`flash.success`, tanpa `immediate`), jadi tidak ada risiko toast basi saat halaman pertama dibuka.
 
-Catatan untuk `ReviewDetail.vue`: watcher di sana hanya memunculkan toast error dari `flash.id`, tetapi `setujui()`/`tolak()`/`ubahJenis()` tetap memunculkan toast sukses lewat `onSuccess`. Ketika `ReviewService` melempar `ReviewException`, controller mengembalikan `back()->with('error', ...)` — sebuah 302→200 yang dianggap sukses oleh Inertia — sehingga toast "Disetujui/tersimpan" menyala bersama toast "Gagal". Pola ini sudah ada sebelum item 4 (plan menyebut watcher `flash.error` di ReviewDetail), jadi bukan regresi baru, tetapi tetap menyesatkan dan sebaiknya disamakan dengan pola flash-only milik TaskList.
+### Mekanisme flash lintas halaman (konsistensi item 4)
 
-### Toggle selektor tema Login (item 5)
+`HandleInertiaRequests::share()` menaruh `'id' => (string) Str::uuid()` sebagai nilai eager (bukan closure), sehingga berubah tiap request dan dievaluasi pada setiap kunjungan termasuk partial reload. Ketiga halaman (`TaskList`, `ReviewDetail`, `ReviewList`) memantau `flash.id` dengan handler yang sama. Dua kegagalan identik beruntun tetap memicu watcher. Tidak ada `onSuccess` toast tersisa di jalur yang bisa bentrok dengan `back()->with('error')`.
 
-Kode akhir berperilaku benar: `v-styleclass="{ selector: '@next', enterFromClass: 'hidden', enterActiveClass: 'animate-slidedown', leaveToClass: 'hidden', hideOnOutsideClick: true }"` pada tombol palette, dengan `@next` menunjuk langsung ke `<AppConfigurator>` yang root-nya `config-panel hidden animate-slidedown`. Klik pertama melepas `hidden`, klik kedua menambah `leaveToClass: 'hidden'`, dan `hideOnOutsideClick` menutup saat klik luar.
+### Temuan 4 (informational) — koreksi narasi item 5
 
-Diagnosa plan tidak tepat: kode lama memakai `animate-fadein` (terdefinisi di `app.css`), bukan `animate-scalein`/`animate-fadeout`. Jadi `animationend` enter DID fire pada kode lama; penyebab stuck sebenarnya adalah struktur lama yang membungkus `<AppConfigurator>` (yang root-nya sudah `hidden`) dalam wrapper `<div class="hidden absolute ...">` berlapis, sehingga toggle `hidden` pada wrapper tidak pernah benar-benar memperlihatkan panel. Perbaikan nyata = menghapus wrapper dan menunjuk `@next` ke `config-panel`. Perilaku akhir benar; hanya narasi root-cause yang perlu dikoreksi agar iterasi berikutnya tidak salah arah.
-
-### Rename TUKIMAN dan blast radius (item 6 + scope)
-
-Teks user-facing terganti: `AppTopbar.vue` brand → "TUKIMAN", `AppFooter.vue` memuat "TUKIMAN", `Login.vue` brand + tagline "Tugas dan Kinerja Manajemen", `app.js` fallback title → "TUKIMAN", `app.blade.php` fallback title → "TUKIMAN", `config/app.php` fallback → "TUKIMAN", `.env.example` `APP_NAME=TUKIMAN`. Folder, composer, DB (`remunisasi_v2`), namespace, dan route name tidak diubah — sesuai batas scope.
-
-Namun diff membawa perubahan besar non-rename pada file yang sama dan file lain, yang tidak termasuk enam item:
-
-- `HandleInertiaRequests` menulis ulang `auth.user` menjadi closure yang mengembalikan `foto_url`, `roles`, `is_katimker/kabid/admin`, dan flag 2FA. Hanya penambahan `flash.id` yang relevan dengan item 4; sisanya milik fitur login/foto pegawai.
-- `Login.vue` mengganti field `email`→`login` (didukung `LoginController` yang memvalidasi `login`), menambah panel branding, daftar fitur, dan footer tahun. Ini redesign penuh, bukan sekadar rename.
-- `AppTopbar.vue` mengganti logo SVG→img, menambah panel pengguna dengan foto, daftar peran, dan tombol logout.
-- `AppFooter.vue` ditulis ulang jadi kredit SIMRS/RSUD Bangil.
-- `.env.example` mengubah `DB_CONNECTION` pgsql→mysql, kredensial DB, dan menambah blok konfigurasi SIKEP (host/port/salt/foto base URL).
-
-Semuanya tampak koheren dan berfungsi (controller/service pendukung ada di working tree sebagai untracked), tetapi mereka adalah pekerjaan task lain (mis. direktori `login-redesign-and-employee-photo`, `admin-2fa`, `role-manual-sikep`) yang ikut ter-commit. Mencampur concern ini menyalahi batasan "tanpa refactor tak terkait", menyulitkan review dan revert selektif, dan membuat `verification.md` tidak mewakili isi commit sebenarnya.
-
-Satu bug kecil yang nyata dari rewrite topbar: template me-render `{{ user.no_absen }}` di balik `v-if="user?.no_absen"`, tetapi payload `auth.user` tidak pernah mengirim `no_absen`. Berkat optional chaining ini tidak crash, hanya segmen "· no_absen" yang tak pernah muncul — referensi mati yang sebaiknya dihapus atau datanya ditambahkan ke share payload.
+Narasi di plan/verification dikoreksi: penyebab panel tema Login tak menutup bukan `animate-scalein`/`animate-fadeout` (kode lama memakai `animate-fadein` yang terdefinisi) melainkan wrapper `hidden` berlapis di sekitar `<AppConfigurator>`; fix nyata = `@next` menunjuk langsung ke root `config-panel`. Perilaku akhir sudah benar sejak iterasi 1 dan tidak berubah; ini murni koreksi dokumentasi.
 
 ### Evidence verifikasi
 
-`verification.md` mencatat `php artisan test` → 160 passed (606 assertions) dan `npm run build` → sukses. Sesuai instruksi, suite tidak dijalankan ulang; evidence diterima apa adanya. Build sukses juga menyiratkan komponen PrimeVue baru di Login (`Message`, `IconField`, `InputIcon`) ter-resolve lewat auto-import. Tidak ada keraguan spesifik yang menuntut spot-check tambahan.
+`verification.md` iterasi 2 mencatat `php artisan test` → 160 passed (606 assertions) dan `npm run build` → sukses (4.84s). Sesuai instruksi, suite tidak dijalankan ulang; evidence lengkap dan diterima. Perubahan iterasi 2 murni frontend (hapus `onSuccess`, hapus satu baris template, tambah satu komponen Vue flash-watcher) ditambah koreksi dokumen — tidak ada perubahan backend baru yang bisa menurunkan baseline test. Tidak ada keraguan spesifik yang menuntut spot-check.
 
 </details>
 
 <details>
 <summary>File map</summary>
 
-- `app/Http/Controllers/Kabid/ReviewController.php` — serializer `show()` menambah `url`/`is_image`/`mime` (file tercatat "new" karena base commit tidak memuatnya; sebagian besar sistem pendukung masih untracked di working tree).
-- `app/Http/Middleware/HandleInertiaRequests.php` — tambah `flash.id` (in-scope) + rewrite `auth.user` (out-of-scope).
-- `resources/js/Pages/Kabid/ReviewDetail.vue` — selfie berframe + Dialog, dokumen link, watcher `flash.id`.
-- `resources/js/Pages/Katimker/TaskForm.vue` — thumbnail preview selfie + revoke object URL.
-- `resources/js/Pages/Katimker/TaskList.vue` — watcher dialihkan ke `flash.id`.
-- `resources/js/Components/FloatingConfigurator.vue` — retarget `@next` + `animate-slidedown` (toggle tema Login).
-- `resources/js/Pages/Auth/Login.vue` — rename TUKIMAN (in-scope) + redesign & field `login` (out-of-scope).
-- `resources/js/layout/AppTopbar.vue` — brand TUKIMAN (in-scope) + panel pengguna/logout/foto (out-of-scope); `no_absen` dead reference.
-- `resources/js/layout/AppFooter.vue` — rewrite footer (hanya "TUKIMAN" yang in-scope).
-- `resources/js/app.js`, `resources/views/app.blade.php`, `config/app.php`, `.env.example` — fallback title/APP_NAME → TUKIMAN; `.env.example` juga ubah DB+SIKEP (out-of-scope).
+Iterasi 2 (`b7c2ac8`):
+- `resources/js/layout/AppTopbar.vue` — hapus dead reference `no_absen` (temuan 2).
+- `resources/js/Pages/Kabid/ReviewDetail.vue` — buang `onSuccess` toast dari `setujui`/`tolak`/`ubahJenis`; watcher `flash.id` kini menampilkan error dan success (temuan 3).
+- `resources/js/Pages/Kabid/ReviewList.vue` — tambah watcher `flash.id` agar toast sukses approve/reject tampil satu kali di halaman tujuan (temuan 3).
+- `.agents/tasks/.../verification.md` + `plan.md` — koreksi narasi root-cause item 5 + dokumentasi load-bearing per-file (temuan 1 & 4).
 
-Diff penuh commit: `git show c063abe` (salinan di `.agents/tasks/penilaian-ui-dan-rename-tukiman/_scoped_diff.txt`).
+Iterasi 1 (`c063abe`, dinilai di review sebelumnya, tidak berubah): serializer `ReviewController@show` (+url/is_image/mime), selfie berframe + Dialog di `ReviewDetail.vue`, thumbnail preview `TaskForm.vue`, nonce `flash.id` di `HandleInertiaRequests` + watcher `TaskList.vue`, `FloatingConfigurator.vue` retarget `@next`, rename TUKIMAN di topbar/footer/login/`app.js`/`app.blade.php`/`config/app.php`/`.env.example`, plus perubahan load-bearing login/foto/SIKEP.
+
+Diff iterasi 2: `git show b7c2ac8`. Diff gabungan: `git diff 3b853c9 b7c2ac8`.
 
 </details>

@@ -167,9 +167,9 @@ watch(
             <i class="layout-menuitem-toggler pi pi-fw pi-angle-down" :class="{ 'rotate-180': isActiveMenu }"></i>
         </button>
 
-        <!-- Submenu (recursive) -->
+        <!-- Submenu (recursive) — hanya untuk grup non-root; root menangani anaknya di atas -->
         <Transition name="layout-submenu">
-            <ul v-if="item.items && isActiveMenu" class="layout-submenu" role="menu">
+            <ul v-if="!root && item.items && isActiveMenu" class="layout-submenu" role="menu">
                 <app-menu-item
                     v-for="(child, i) in item.items"
                     :key="child.label"

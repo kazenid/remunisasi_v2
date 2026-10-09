@@ -44,7 +44,7 @@ return new class extends Migration
             $table->timestamp('difinalkan_pada')->nullable();
             $table->timestamps();
 
-            $table->unique(['katimker_sikep_user_id', 'tahun', 'bulan']);
+            $table->unique(['katimker_sikep_user_id', 'tahun', 'bulan'], 'incentive_result_unik');
         });
     }
 
