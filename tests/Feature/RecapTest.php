@@ -38,7 +38,7 @@ class RecapTest extends TestCase
         $this->buatTugas('tambahan', 'disetujui', 45, 30);
         $this->buatTugas('utama', 'diajukan', 100, null);   // belum dinilai
         $this->buatTugas('utama', 'ditolak', 100, null);    // ditolak
-        $this->buatTugas('tambahan', 'draf', 100, null);    // draf
+        $this->buatTugas('tambahan', 'revisi', 100, null);   // revisi
 
         $rekap = app(RecapService::class)->forPeriod($this->katimkerId, 2026, 10);
 
@@ -70,8 +70,9 @@ class RecapTest extends TestCase
         $this->get(route('katimker.rekap.index', ['tahun' => 2026, 'bulan' => 10]))
             ->assertOk()
             ->assertInertia(fn ($p) => $p
-                ->component('Rekap/Index')
-                ->where('ringkasan.utama_menit', 120));
+                ->component('Rekap/Katimker')
+                ->where('ringkasan.utama_menit', 120)
+                ->where('insentif.status', 'estimasi'));
     }
 
     public function test_kabid_melihat_rekap_binaan_saja(): void

@@ -37,4 +37,4 @@
 * **Jadwal Operasional Bulanan**:
   * **Tanggal 1–10**: Masa pengajuan kegiatan, verifikasi atasan, serta toleransi revisi laporan.
   * **Tanggal 10**: Batas akhir penguncian data (*cut-off*). Apabila data belum diajukan atau direvisi hingga tanggal 10, pengajuan dianggap gugur.
-  * **Tanggal 15**: Target pelaksanaan pencairan insentif pegawai.
+  * **Tanggal 15**: Target realisasi insentif pegawai.

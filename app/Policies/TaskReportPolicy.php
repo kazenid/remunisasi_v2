@@ -21,16 +21,18 @@ class TaskReportPolicy
         return $this->pemilik($user, $task);
     }
 
-    /** Ubah hanya saat tugas masih dapat diedit (draf / ditolak). */
+    /** Ubah selama belum disetujui/ditolak dan periodenya belum melewati cut-off. */
     public function update(User $user, TaskReport $task): bool
     {
-        return $this->pemilik($user, $task) && $task->isEditable();
+        return $this->pemilik($user, $task) && $task->isEditable() && ! $task->periodeTerkunci();
     }
 
-    /** Hapus hanya oleh pemilik, saat masih draf. */
+    /** Hapus hanya oleh pemilik, tugas buatan sendiri (bukan penugasan Kabid), masih dapat diedit. */
     public function delete(User $user, TaskReport $task): bool
     {
-        return $this->pemilik($user, $task) && $task->isDraf();
+        return $this->update($user, $task)
+            && ! $task->isMenungguBukti()
+            && $task->dibuat_oleh_sikep_user_id === null;
     }
 
     /**
@@ -42,11 +44,13 @@ class TaskReportPolicy
     }
 
     /**
-     * Kabid boleh menilai hanya tugas miliknya (snapshot) dan berstatus diajukan.
+     * Kabid boleh menilai hanya tugas miliknya (snapshot), berstatus diajukan,
+     * dan periodenya belum melewati cut-off.
      */
     public function review(User $user, TaskReport $task): bool
     {
         return $user->sikep_user_id === $task->kabid_sikep_user_id
-            && $task->isDiajukan();
+            && $task->isDiajukan()
+            && ! $task->periodeTerkunci();
     }
 }

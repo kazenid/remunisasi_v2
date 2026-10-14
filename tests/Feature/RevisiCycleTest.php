@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Activity;
 use App\Models\ApproverMapping;
 use App\Models\AuditLog;
 use App\Models\TaskAttachment;
@@ -14,7 +15,7 @@ use Mockery;
 use Tests\TestCase;
 
 /**
- * Siklus revisi: ditolak → edit → ajukan ulang, dan immutability status disetujui.
+ * Siklus revisi: revisi → edit (otomatis masuk penilai lagi), ditolak final, dan immutability status disetujui.
  */
 class RevisiCycleTest extends TestCase
 {
@@ -71,10 +72,11 @@ class RevisiCycleTest extends TestCase
         ]);
     }
 
-    public function test_siklus_ditolak_edit_resubmit_dengan_jejak_audit(): void
+    public function test_siklus_revisi_edit_masuk_penilai_lagi_dengan_jejak_audit(): void
     {
         Storage::fake('local');
         ApproverMapping::create(['katimker_sikep_user_id' => $this->katimkerId, 'kabid_sikep_user_id' => $this->kabidId]);
+        $kegiatan = Activity::create(['nama' => 'Judul diperbaiki']);
 
         $task = TaskReport::create([
             'katimker_sikep_user_id' => $this->katimkerId,
@@ -88,37 +90,41 @@ class RevisiCycleTest extends TestCase
         $kabid = User::factory()->create(['sikep_user_id' => $this->kabidId]);
         $katimker = User::factory()->create(['sikep_user_id' => $this->katimkerId]);
 
-        // 1) Kabid menolak dengan catatan.
+        // 1) Kabid meminta revisi dengan keterangan.
         $this->actingAs($kabid)
-            ->post(route('kabid.penilaian.reject', $task->id), ['catatan' => 'Judul kurang jelas'])
+            ->post(route('kabid.penilaian.revisi', $task->id), ['keterangan' => 'Kegiatan kurang jelas'])
             ->assertRedirect();
-        $this->assertSame('ditolak', $task->refresh()->status);
+        $this->assertSame('revisi', $task->refresh()->status);
 
-        // 2) Katimker mengedit tugas yang ditolak.
+        // 2) Katimker memperbaiki: menyimpan = otomatis kembali ke proses penilaian.
         $this->actingAs($katimker)
             ->post(route('katimker.tugas.update', $task->id), [
-                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'Judul diperbaiki',
+                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'kegiatan_id' => $kegiatan->id,
                 'durasi_jam' => 2, 'durasi_menit' => 0,
             ])
             ->assertRedirect(route('katimker.tugas.index'));
-        $this->assertSame('Judul diperbaiki', $task->refresh()->judul);
-        $this->assertSame('ditolak', $task->status); // masih ditolak sampai diajukan ulang
-
-        // 3) Katimker mengajukan ulang.
-        $this->post(route('katimker.tugas.submit', $task->id))->assertRedirect();
         $task->refresh();
+        $this->assertSame('Judul diperbaiki', $task->judul);
         $this->assertSame('diajukan', $task->status);
-        $this->assertNull($task->catatan_penilai); // jejak penolakan dibersihkan dari tugas
+        $this->assertNull($task->catatan_penilai); // jejak revisi dibersihkan dari tugas
 
-        // 4) Riwayat audit append-only tetap menyimpan reject lalu submit.
+        // 3) Kabid menolak: final.
+        $this->actingAs($kabid)
+            ->post(route('kabid.penilaian.reject', $task->id), ['keterangan' => 'Tetap tidak sesuai'])
+            ->assertRedirect();
+        $this->assertSame('ditolak', $task->refresh()->status);
+
+        // 4) Katimker tidak dapat memperbaiki lagi.
+        $this->actingAs($katimker)
+            ->post(route('katimker.tugas.update', $task->id), [
+                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'kegiatan_id' => $kegiatan->id,
+                'durasi_jam' => 1, 'durasi_menit' => 0,
+            ])
+            ->assertForbidden();
+
+        // 5) Riwayat audit append-only menyimpan revisi → submit → reject berurutan.
         $aksi = AuditLog::query()->where('subject_id', $task->id)->orderBy('id')->pluck('aksi')->all();
-        $this->assertContains('task.reject', $aksi);
-        $this->assertContains('task.submit', $aksi);
-        $this->assertLessThan(
-            array_search('task.submit', $aksi, true),
-            array_search('task.reject', $aksi, true),
-            'task.reject harus tercatat sebelum task.submit',
-        );
+        $this->assertSame(['task.revisi', 'task.submit', 'task.reject'], array_values(array_intersect($aksi, ['task.revisi', 'task.submit', 'task.reject'])));
     }
 
     public function test_tugas_disetujui_immutable_bagi_katimker(): void
@@ -137,9 +143,9 @@ class RevisiCycleTest extends TestCase
         // Tidak bisa diedit, diajukan ulang, maupun dihapus.
         $this->get(route('katimker.tugas.edit', $task->id))->assertOk(); // boleh lihat
         $this->post(route('katimker.tugas.update', $task->id), [
-            'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'Ubah', 'durasi_jam' => 1, 'durasi_menit' => 0,
+            'tanggal' => '2026-10-06', 'jenis' => 'utama', 'kegiatan_id' => Activity::create(['nama' => 'Ubah'])->id,
+            'durasi_jam' => 1, 'durasi_menit' => 0,
         ])->assertForbidden();
-        $this->post(route('katimker.tugas.submit', $task->id))->assertForbidden();
         $this->delete(route('katimker.tugas.destroy', $task->id))->assertForbidden();
     }
 

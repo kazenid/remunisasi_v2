@@ -2,21 +2,62 @@
 import GuestLayout from '@/Layouts/GuestLayout.vue';
 import FloatingConfigurator from '@/Components/FloatingConfigurator.vue';
 import { Head, useForm } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 defineOptions({ layout: GuestLayout });
+
+const props = defineProps({
+    turnstileSiteKey: { type: String, default: null },
+});
 
 const form = useForm({
     login: '',
     password: '',
     remember: false,
+    turnstile_token: '',
 });
 
 const tahun = computed(() => new Date().getFullYear());
 
+// ─── Cloudflare Turnstile (aktif hanya bila site key dikonfigurasi) ───
+const turnstileEl = ref(null);
+let turnstileWidgetId = null;
+
+function renderTurnstile() {
+    if (!props.turnstileSiteKey || !turnstileEl.value || !window.turnstile) return;
+    turnstileWidgetId = window.turnstile.render(turnstileEl.value, {
+        sitekey: props.turnstileSiteKey,
+        callback: (token) => { form.turnstile_token = token; },
+        'expired-callback': () => { form.turnstile_token = ''; },
+        'error-callback': () => { form.turnstile_token = ''; },
+    });
+}
+
+onMounted(() => {
+    if (!props.turnstileSiteKey) return;
+    if (window.turnstile) {
+        renderTurnstile();
+        return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    script.async = true;
+    script.onload = renderTurnstile;
+    document.head.appendChild(script);
+});
+
+onBeforeUnmount(() => {
+    if (turnstileWidgetId !== null && window.turnstile) window.turnstile.remove(turnstileWidgetId);
+});
+
 const submit = () => {
     form.post(route('login'), {
-        onFinish: () => form.reset('password'),
+        onFinish: () => {
+            form.reset('password');
+            // Token Turnstile sekali pakai: minta token baru setelah setiap percobaan.
+            form.turnstile_token = '';
+            if (turnstileWidgetId !== null && window.turnstile) window.turnstile.reset(turnstileWidgetId);
+        },
     });
 };
 </script>
@@ -136,12 +177,15 @@ const submit = () => {
                                 <label for="remember" class="text-surface-700 dark:text-surface-200 cursor-pointer">Ingat saya</label>
                             </div>
 
+                            <div v-if="turnstileSiteKey" ref="turnstileEl" class="flex justify-center mb-6"></div>
+
                             <Button
                                 type="submit"
                                 label="Masuk"
                                 icon="pi pi-sign-in"
                                 class="w-full"
                                 :loading="form.processing"
+                                :disabled="!!turnstileSiteKey && !form.turnstile_token"
                             />
                         </form>
                     </div>

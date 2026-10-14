@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Activity;
 use App\Models\ApproverMapping;
 use App\Models\TaskReport;
 use App\Models\User;
@@ -48,10 +49,12 @@ class AssignmentTest extends TestCase
         $this->petakan();
         $kabid = User::factory()->create(['sikep_user_id' => $this->kabidId]);
 
+        $kegiatan = Activity::create(['nama' => 'Pasang jaringan']);
+
         $this->actingAs($kabid)->post(route('kabid.penugasan.store'), [
             'katimker_sikep_user_id' => $this->katimkerId,
             'tanggal' => '2026-10-06',
-            'judul' => 'Pasang jaringan',
+            'kegiatan_id' => $kegiatan->id,
         ])->assertRedirect(route('kabid.penilaian.index'));
 
         $t = TaskReport::first();
@@ -59,6 +62,7 @@ class AssignmentTest extends TestCase
         $this->assertSame('tambahan', $t->jenis);
         $this->assertTrue((bool) $t->jenis_terkunci);
         $this->assertSame('menunggu_bukti', $t->status);
+        $this->assertSame('Pasang jaringan', $t->judul);
         $this->assertSame($this->katimkerId, $t->katimker_sikep_user_id);
         $this->assertSame($this->kabidId, $t->kabid_sikep_user_id);
         $this->assertSame($this->kabidId, $t->dibuat_oleh_sikep_user_id);
@@ -73,13 +77,13 @@ class AssignmentTest extends TestCase
 
         $this->actingAs($kabid)->from(route('kabid.penugasan.create'))->post(route('kabid.penugasan.store'), [
             'katimker_sikep_user_id' => $this->katimkerId,
-            'tanggal' => '2026-10-06', 'judul' => 'X',
+            'tanggal' => '2026-10-06', 'kegiatan_id' => Activity::create(['nama' => 'X'])->id,
         ])->assertSessionHasErrors('katimker_sikep_user_id');
 
         $this->assertSame(0, TaskReport::count());
     }
 
-    public function test_katimker_isi_bukti_dan_ajukan_penugasan(): void
+    public function test_katimker_isi_bukti_penugasan_otomatis_masuk_penilai(): void
     {
         Storage::fake('local');
         $this->mockRoleByUser();
@@ -95,10 +99,11 @@ class AssignmentTest extends TestCase
         ]);
 
         $katimker = User::factory()->create(['sikep_user_id' => $this->katimkerId]);
+        $kegiatan = Activity::create(['nama' => 'Tugas dari kabid']);
 
         // Katimker lengkapi bukti + durasi (jenis dikirim 'utama' tapi harus diabaikan karena terkunci).
         $this->actingAs($katimker)->post(route('katimker.tugas.update', $assignment->id), [
-            'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'Tugas dari kabid',
+            'tanggal' => '2026-10-06', 'jenis' => 'utama', 'kegiatan_id' => $kegiatan->id,
             'durasi_jam' => 1, 'durasi_menit' => 30,
             'foto_selfie' => [UploadedFile::fake()->image('s.jpg')],
         ])->assertRedirect();
@@ -107,9 +112,8 @@ class AssignmentTest extends TestCase
         $this->assertSame('tambahan', $assignment->jenis); // tetap tambahan (terkunci)
         $this->assertSame(90, $assignment->durasi_diajukan_menit);
 
-        // Ajukan.
-        $this->actingAs($katimker)->post(route('katimker.tugas.submit', $assignment->id))->assertRedirect();
-        $this->assertSame('diajukan', $assignment->refresh()->status);
+        // Menyimpan = otomatis masuk proses penilaian.
+        $this->assertSame('diajukan', $assignment->status);
     }
 
     protected function tearDown(): void

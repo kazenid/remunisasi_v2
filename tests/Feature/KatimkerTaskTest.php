@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Http\Requests\TaskDraftRequest;
+use App\Models\Activity;
+use App\Models\ApproverMapping;
 use App\Models\TaskAttachment;
 use App\Models\TaskReport;
 use App\Models\User;
@@ -32,12 +34,22 @@ class KatimkerTaskTest extends TestCase
             ]);
         });
 
+        ApproverMapping::firstOrCreate(
+            ['katimker_sikep_user_id' => $sikepUserId],
+            ['kabid_sikep_user_id' => 700],
+        );
+
         $this->actingAs($user);
 
         return $user;
     }
 
-    public function test_katimker_dapat_membuat_draf_dengan_durasi_menit(): void
+    private function kegiatanId(): int
+    {
+        return (Activity::query()->first() ?? Activity::create(['nama' => 'Rapat tim']))->id;
+    }
+
+    public function test_katimker_dapat_menyimpan_tugas_dengan_durasi_menit(): void
     {
         Storage::fake('local');
         $this->actingAsKatimker();
@@ -45,7 +57,7 @@ class KatimkerTaskTest extends TestCase
         $this->post(route('katimker.tugas.store'), [
             'tanggal' => '2026-10-06',
             'jenis' => 'utama',
-            'judul' => 'Rapat tim',
+            'kegiatan_id' => $this->kegiatanId(),
             'durasi_jam' => 2,
             'durasi_menit' => 30,
             'foto_selfie' => [UploadedFile::fake()->image('selfie.jpg')],
@@ -54,7 +66,7 @@ class KatimkerTaskTest extends TestCase
         $task = TaskReport::first();
         $this->assertNotNull($task);
         $this->assertSame(150, $task->durasi_diajukan_menit);
-        $this->assertSame('draf', $task->status);
+        $this->assertSame('diajukan', $task->status);
         $this->assertSame($this->sikepId, $task->katimker_sikep_user_id);
         $this->assertSame(1, $task->attachments()->where('tipe', 'foto_selfie')->count());
     }
@@ -65,7 +77,7 @@ class KatimkerTaskTest extends TestCase
 
         $this->from(route('katimker.tugas.create'))
             ->post(route('katimker.tugas.store'), [
-                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'X',
+                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'kegiatan_id' => $this->kegiatanId(),
                 'durasi_jam' => 0, 'durasi_menit' => 0,
             ])
             ->assertSessionHasErrors('durasi_menit');
@@ -80,7 +92,7 @@ class KatimkerTaskTest extends TestCase
 
         $this->from(route('katimker.tugas.create'))
             ->post(route('katimker.tugas.store'), [
-                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'X',
+                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'kegiatan_id' => $this->kegiatanId(),
                 'durasi_jam' => 1, 'durasi_menit' => 0,
                 'dokumen' => [UploadedFile::fake()->create('data.txt', 10, 'text/plain')],
             ])
@@ -93,7 +105,7 @@ class KatimkerTaskTest extends TestCase
         $this->actingAsKatimker();
 
         $this->post(route('katimker.tugas.store'), [
-            'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'Bukti campuran',
+            'tanggal' => '2026-10-06', 'jenis' => 'utama', 'kegiatan_id' => $this->kegiatanId(),
             'durasi_jam' => 1, 'durasi_menit' => 0,
             'bukti' => [
                 UploadedFile::fake()->image('foto.jpg'),
@@ -115,7 +127,7 @@ class KatimkerTaskTest extends TestCase
 
         $this->from(route('katimker.tugas.create'))
             ->post(route('katimker.tugas.store'), [
-                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'X',
+                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'kegiatan_id' => $this->kegiatanId(),
                 'durasi_jam' => 1, 'durasi_menit' => 0,
                 'bukti' => [UploadedFile::fake()->create('x.exe', 10, 'application/octet-stream')],
             ])
@@ -131,7 +143,7 @@ class KatimkerTaskTest extends TestCase
 
         $this->from(route('katimker.tugas.create'))
             ->post(route('katimker.tugas.store'), [
-                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'X',
+                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'kegiatan_id' => $this->kegiatanId(),
                 'durasi_jam' => 1, 'durasi_menit' => 0,
                 'bukti' => [UploadedFile::fake()->create('big.pdf', 11000, 'application/pdf')], // > 10 MB
             ])
@@ -147,7 +159,7 @@ class KatimkerTaskTest extends TestCase
 
         $this->from(route('katimker.tugas.create'))
             ->post(route('katimker.tugas.store'), [
-                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'Selfie besar',
+                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'kegiatan_id' => $this->kegiatanId(),
                 'durasi_jam' => 1, 'durasi_menit' => 0,
                 'foto_selfie' => [UploadedFile::fake()->image('big.jpg')->size(6000)], // 6 MB > 5 MB
             ])
@@ -168,7 +180,7 @@ class KatimkerTaskTest extends TestCase
 
         $this->from(route('katimker.tugas.create'))
             ->post(route('katimker.tugas.store'), [
-                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'Bukti besar',
+                'tanggal' => '2026-10-06', 'jenis' => 'utama', 'kegiatan_id' => $this->kegiatanId(),
                 'durasi_jam' => 1, 'durasi_menit' => 0,
                 'bukti' => [UploadedFile::fake()->create('big.pdf', 11000, 'application/pdf')], // > 10 MB
             ])
@@ -200,7 +212,7 @@ class KatimkerTaskTest extends TestCase
         $this->actingAsKatimker();
 
         $this->post(route('katimker.tugas.store'), [
-            'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'Punya bukti',
+            'tanggal' => '2026-10-06', 'jenis' => 'utama', 'kegiatan_id' => $this->kegiatanId(),
             'durasi_jam' => 1, 'durasi_menit' => 0,
             'bukti' => [UploadedFile::fake()->image('foto.jpg')],
         ]);
@@ -224,7 +236,7 @@ class KatimkerTaskTest extends TestCase
         $task = TaskReport::create([
             'katimker_sikep_user_id' => 999, // bukan milik user login
             'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'Milik orang lain',
-            'durasi_diajukan_menit' => 60, 'status' => 'draf',
+            'durasi_diajukan_menit' => 60, 'status' => 'diajukan',
         ]);
 
         $this->actingAsKatimker(); // sikep 500
@@ -232,12 +244,12 @@ class KatimkerTaskTest extends TestCase
         $this->get(route('katimker.tugas.edit', $task->id))->assertForbidden();
     }
 
-    public function test_draf_terkunci_dari_hapus_jika_bukan_draf(): void
+    public function test_tugas_disetujui_tidak_dapat_dihapus(): void
     {
         $task = TaskReport::create([
             'katimker_sikep_user_id' => $this->sikepId,
-            'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'Sudah diajukan',
-            'durasi_diajukan_menit' => 60, 'status' => 'diajukan',
+            'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'Sudah disetujui',
+            'durasi_diajukan_menit' => 60, 'durasi_disetujui_menit' => 60, 'status' => 'disetujui',
         ]);
 
         $this->actingAsKatimker();
@@ -246,13 +258,13 @@ class KatimkerTaskTest extends TestCase
         $this->assertDatabaseHas('task_reports', ['id' => $task->id]);
     }
 
-    public function test_hapus_draf_menghapus_lampiran(): void
+    public function test_hapus_tugas_menghapus_lampiran(): void
     {
         Storage::fake('local');
         $this->actingAsKatimker();
 
         $this->post(route('katimker.tugas.store'), [
-            'tanggal' => '2026-10-06', 'jenis' => 'utama', 'judul' => 'Hapus saya',
+            'tanggal' => '2026-10-06', 'jenis' => 'utama', 'kegiatan_id' => $this->kegiatanId(),
             'durasi_jam' => 1, 'durasi_menit' => 0,
             'foto_selfie' => [UploadedFile::fake()->image('s.jpg')],
         ]);

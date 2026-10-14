@@ -8,9 +8,11 @@
     "require": {
         "php": "^8.3",
         "bacon/bacon-qr-code": "^3.1",
+        "barryvdh/laravel-dompdf": "^3.1",
         "inertiajs/inertia-laravel": "^3.1",
         "laravel/framework": "^13.8",
         "laravel/tinker": "^3.0",
+        "openspout/openspout": "^5.3",
         "pragmarx/google2fa-laravel": "^3.0",
         "tightenco/ziggy": "^2.6"
     },

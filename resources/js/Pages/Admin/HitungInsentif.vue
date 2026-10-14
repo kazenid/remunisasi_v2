@@ -68,6 +68,15 @@ function hitungUlang() {
     });
 }
 
+function bukaLaporan() {
+    router.get(route('admin.insentif.hitung.laporan'), { tahun: filter.tahun, bulan: filter.bulan });
+}
+
+function unduhExcel() {
+    // Unduhan berkas: navigasi langsung (bukan XHR Inertia).
+    window.location.href = route('admin.insentif.hitung.unduh', { tahun: filter.tahun, bulan: filter.bulan });
+}
+
 function simpanPlafon(row) {
     menyimpan.value[row.katimker_sikep_user_id] = true;
     router.post(route('admin.insentif.hitung.plafon'), {
@@ -135,6 +144,8 @@ watch(
                     </div>
                     <Button label="Hitung ulang" icon="pi pi-refresh" @click="hitungUlang" />
                     <Button label="Finalkan" icon="pi pi-check" severity="success" :loading="memfinalkan" @click="konfirmasiFinalkan" />
+                    <Button label="Laporan" icon="pi pi-file" severity="secondary" outlined @click="bukaLaporan" />
+                    <Button label="Download Excel" icon="pi pi-file-excel" severity="secondary" outlined @click="unduhExcel" />
                 </div>
 
                 <DataTable :value="baris" data-key="katimker_sikep_user_id" paginator :rows="15" :rows-per-page-options="[15, 30, 50]" striped-rows>

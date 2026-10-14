@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         // User lokal = mirror ringan dari ms_user SIKEP.
@@ -19,7 +16,19 @@ return new class extends Migration
             $table->string('username')->nullable();
             $table->string('nama')->nullable();
             $table->unsignedInteger('no_absen')->nullable()->index();
+            $table->string('token_pegawai')->nullable(); // untuk URL foto pegawai SIKEP
+
+            // Peran lokal (sumber kebenaran, lepas dari jabatan SIKEP): admin|katimker|kabid.
+            // is_admin = kolom turunan (role = admin <=> is_admin = true).
             $table->boolean('is_admin')->default(false);
+            $table->string('role', 20)->nullable();
+            $table->boolean('aktif')->default(true);
+
+            // 2FA (TOTP) admin. Teks = ciphertext Crypt::encryptString.
+            $table->text('two_factor_secret')->nullable();
+            $table->text('two_factor_recovery_codes')->nullable();
+            $table->timestamp('two_factor_confirmed_at')->nullable();
+
             $table->timestamp('last_sync_at')->nullable();
             $table->rememberToken();
             $table->timestamps();
@@ -35,12 +44,9 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('users');
         Schema::dropIfExists('sessions');
+        Schema::dropIfExists('users');
     }
 };

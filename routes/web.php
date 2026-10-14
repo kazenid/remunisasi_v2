@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ActivityController;
 use App\Http\Controllers\Admin\ApproverMappingController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\IncentiveCalculationController;
@@ -12,9 +13,9 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\IndividualTargetController;
+use App\Http\Controllers\Kabid\BinaanController;
 use App\Http\Controllers\Kabid\ReviewController;
 use App\Http\Controllers\Katimker\TaskController;
-use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RecapController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -78,9 +79,15 @@ Route::middleware(['auth', 'active-role', 'two-factor'])->group(function () {
         Route::get('/konfigurasi-insentif', [IncentiveConfigController::class, 'index'])->name('insentif.index');
         Route::post('/konfigurasi-insentif', [IncentiveConfigController::class, 'update'])->name('insentif.update');
         Route::get('/hitung-insentif', [IncentiveCalculationController::class, 'index'])->name('insentif.hitung.index');
+        Route::get('/hitung-insentif/laporan', [IncentiveCalculationController::class, 'laporan'])->name('insentif.hitung.laporan');
+        Route::get('/hitung-insentif/unduh', [IncentiveCalculationController::class, 'unduh'])->name('insentif.hitung.unduh');
         Route::post('/hitung-insentif/plafon', [IncentiveCalculationController::class, 'plafon'])->name('insentif.hitung.plafon');
         Route::post('/hitung-insentif/finalkan', [IncentiveCalculationController::class, 'finalkan'])->name('insentif.hitung.finalkan');
         Route::post('/target-individu', [IndividualTargetController::class, 'store'])->name('target.store');
+        Route::get('/kegiatan', [ActivityController::class, 'index'])->name('kegiatan.index');
+        Route::post('/kegiatan', [ActivityController::class, 'store'])->name('kegiatan.store');
+        Route::post('/kegiatan/{kegiatan}', [ActivityController::class, 'update'])->name('kegiatan.update');
+        Route::delete('/kegiatan/{kegiatan}', [ActivityController::class, 'destroy'])->name('kegiatan.destroy');
     });
 
     // ─── Katimker ─────────────────────────────────────────────────────────
@@ -88,12 +95,13 @@ Route::middleware(['auth', 'active-role', 'two-factor'])->group(function () {
         Route::get('/tugas', [TaskController::class, 'index'])->name('tugas.index');
         Route::get('/tugas/create', [TaskController::class, 'create'])->name('tugas.create');
         Route::post('/tugas', [TaskController::class, 'store'])->name('tugas.store');
+        Route::get('/tugas/{tugas}', [TaskController::class, 'show'])->whereNumber('tugas')->name('tugas.show');
         Route::get('/tugas/{tugas}/edit', [TaskController::class, 'edit'])->name('tugas.edit');
         Route::post('/tugas/{tugas}', [TaskController::class, 'update'])->name('tugas.update');
-        Route::post('/tugas/{tugas}/ajukan', [TaskController::class, 'submit'])->name('tugas.submit');
         Route::delete('/tugas/{tugas}', [TaskController::class, 'destroy'])->name('tugas.destroy');
         Route::delete('/lampiran/{attachment}', [TaskController::class, 'destroyAttachment'])->name('tugas.lampiran.destroy');
         Route::get('/rekap', [RecapController::class, 'katimker'])->name('rekap.index');
+        Route::get('/rekap/slip', [RecapController::class, 'slip'])->name('rekap.slip');
     });
 
     // ─── Kabid ────────────────────────────────────────────────────────────
@@ -101,22 +109,15 @@ Route::middleware(['auth', 'active-role', 'two-factor'])->group(function () {
         Route::get('/penilaian', [ReviewController::class, 'index'])->name('penilaian.index');
         Route::get('/penilaian/{tugas}', [ReviewController::class, 'show'])->name('penilaian.show');
         Route::post('/penilaian/{tugas}/setujui', [ReviewController::class, 'approve'])->name('penilaian.approve');
+        Route::post('/penilaian/{tugas}/revisi', [ReviewController::class, 'revisi'])->name('penilaian.revisi');
         Route::post('/penilaian/{tugas}/tolak', [ReviewController::class, 'reject'])->name('penilaian.reject');
         Route::post('/penilaian/{tugas}/jenis', [ReviewController::class, 'ubahJenis'])->name('penilaian.jenis');
         Route::get('/penugasan', [ReviewController::class, 'assignForm'])->name('penugasan.create');
         Route::post('/penugasan', [ReviewController::class, 'assignStore'])->name('penugasan.store');
         Route::post('/target-individu', [IndividualTargetController::class, 'store'])->name('target.store');
         Route::get('/rekap', [RecapController::class, 'kabid'])->name('rekap.index');
+        Route::get('/rekap/{katimker}/tugas', [BinaanController::class, 'tugas'])->whereNumber('katimker')->name('rekap.tugas');
     });
-
-    // ─── Products CRUD ────────────────────────────────────────────────────
-    Route::resource('products', ProductController::class)->except(['create', 'edit', 'show'])
-        ->names([
-            'index' => 'pages.crud',
-            'store' => 'products.store',
-            'update' => 'products.update',
-            'destroy' => 'products.destroy',
-        ]);
 
     // ─── UIKit Pages ──────────────────────────────────────────────────────
     Route::prefix('uikit')->name('uikit.')->group(function () {

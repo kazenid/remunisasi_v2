@@ -8,6 +8,7 @@ defineOptions({ layout: AppLayout });
 
 defineProps({
     binaan: { type: Array, default: () => [] },
+    kegiatan: { type: Array, default: () => [] },
 });
 
 const toast = useToast();
@@ -16,7 +17,7 @@ const page = usePage();
 const form = useForm({
     katimker_sikep_user_id: null,
     tanggal: new Date(),
-    judul: '',
+    kegiatan_id: null,
     uraian: '',
 });
 
@@ -65,9 +66,15 @@ watch(
                     </div>
 
                     <div class="flex flex-col gap-2">
-                        <label class="font-medium">Judul Penugasan</label>
-                        <InputText v-model="form.judul" placeholder="mis. Bantu pemasangan jaringan" :class="{ 'p-invalid': form.errors.judul }" />
-                        <small v-if="form.errors.judul" class="text-red-500">{{ form.errors.judul }}</small>
+                        <label class="font-medium">Kegiatan</label>
+                        <Select
+                            v-model="form.kegiatan_id"
+                            :options="kegiatan" optionLabel="nama" optionValue="id"
+                            placeholder="Pilih kegiatan" filter fluid
+                            :class="{ 'p-invalid': form.errors.kegiatan_id }"
+                        />
+                        <small v-if="form.errors.kegiatan_id" class="text-red-500">{{ form.errors.kegiatan_id }}</small>
+                        <small v-if="!kegiatan.length" class="text-orange-500">Master kegiatan masih kosong. Hubungi administrator.</small>
                     </div>
 
                     <div class="flex flex-col gap-2">

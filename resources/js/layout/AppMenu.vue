@@ -51,6 +51,7 @@ const model = computed(() => {
             items: [
                 { label: 'Manajemen Pengguna', icon: 'pi pi-fw pi-users', route: 'admin.pengguna.index' },
                 { label: 'Pemetaan Approver', icon: 'pi pi-fw pi-sitemap', route: 'admin.pemetaan.index' },
+                { label: 'Master Kegiatan', icon: 'pi pi-fw pi-list', route: 'admin.kegiatan.index' },
                 { label: 'Periode', icon: 'pi pi-fw pi-calendar', route: 'admin.periode.index' },
                 { label: 'Rekap Kinerja', icon: 'pi pi-fw pi-chart-bar', route: 'admin.rekap.index' },
                 { label: 'Konfigurasi Insentif', icon: 'pi pi-fw pi-sliders-h', route: 'admin.insentif.index' },

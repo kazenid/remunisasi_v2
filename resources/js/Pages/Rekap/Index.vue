@@ -6,20 +6,11 @@ import { ref, computed } from 'vue';
 defineOptions({ layout: AppLayout });
 
 const props = defineProps({
-    konteks: { type: String, required: true }, // katimker | kabid | admin
+    konteks: { type: String, required: true }, // kabid | admin
     tahun: { type: Number, required: true },
     bulan: { type: Number, required: true },
-    ringkasan: { type: Object, default: null },
-    kehadiran: { type: Object, default: null },
-    target: { type: Object, default: null },
     baris: { type: Array, default: () => [] },
 });
-
-const sumberTarget = {
-    global: 'Target global',
-    individu_umum: 'Target individu',
-    individu_periodik: 'Target individu (periode ini)',
-};
 
 const namaBulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
@@ -48,7 +39,6 @@ function fmt(menit) {
 }
 
 const judul = computed(() => ({
-    katimker: 'Rekap Kinerja Saya',
     kabid: 'Rekap Kinerja Binaan',
     admin: 'Rekap Kinerja (Semua Katimker)',
 }[props.konteks]));
@@ -81,97 +71,8 @@ const judul = computed(() => ({
             </div>
         </div>
 
-        <!-- Ringkasan Katimker -->
-        <template v-if="konteks === 'katimker' && ringkasan">
-            <div class="col-span-12 md:col-span-4">
-                <div class="card mb-0">
-                    <span class="block text-muted-color font-medium mb-4">Tugas Utama (disetujui)</span>
-                    <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">{{ fmt(ringkasan.utama_menit) }}</div>
-                </div>
-            </div>
-            <div class="col-span-12 md:col-span-4">
-                <div class="card mb-0">
-                    <span class="block text-muted-color font-medium mb-4">Tugas Tambahan (disetujui)</span>
-                    <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">{{ fmt(ringkasan.tambahan_menit) }}</div>
-                </div>
-            </div>
-            <div class="col-span-12 md:col-span-4">
-                <div class="card mb-0">
-                    <span class="block text-muted-color font-medium mb-4">Total</span>
-                    <div class="text-primary font-medium text-xl">{{ fmt(ringkasan.total_menit) }}</div>
-                </div>
-            </div>
-
-            <!-- Target efektif (persiapan) -->
-            <div class="col-span-12" v-if="target">
-                <div class="card">
-                    <div class="flex items-center justify-between mb-4">
-                        <h5 class="m-0 font-semibold text-lg">Target Jam</h5>
-                        <Tag :value="sumberTarget[target.sumber] ?? target.sumber" severity="secondary" />
-                    </div>
-                    <div class="grid grid-cols-12 gap-4">
-                        <div class="col-span-6 md:col-span-3">
-                            <span class="block text-muted-color text-sm">Target Tugas Utama</span>
-                            <span class="text-surface-900 dark:text-surface-0 font-medium text-lg">{{ target.utama_menit !== null ? fmt(target.utama_menit) : 'Belum diatur' }}</span>
-                        </div>
-                        <div class="col-span-6 md:col-span-3">
-                            <span class="block text-muted-color text-sm">Target Tugas Tambahan</span>
-                            <span class="text-surface-900 dark:text-surface-0 font-medium text-lg">{{ target.tambahan_menit !== null ? fmt(target.tambahan_menit) : 'Belum diatur' }}</span>
-                        </div>
-                        <div class="col-span-6 md:col-span-3">
-                            <span class="block text-muted-color text-sm">Capaian Utama</span>
-                            <span class="text-primary font-medium text-lg">{{ target.utama_menit ? Math.min(100, Math.round(ringkasan.utama_menit / target.utama_menit * 100)) + '%' : '—' }}</span>
-                        </div>
-                        <div class="col-span-6 md:col-span-3">
-                            <span class="block text-muted-color text-sm">Capaian Tambahan</span>
-                            <span class="text-primary font-medium text-lg">{{ target.tambahan_menit ? Math.min(100, Math.round(ringkasan.tambahan_menit / target.tambahan_menit * 100)) + '%' : '—' }}</span>
-                        </div>
-                    </div>
-                    <small class="text-muted-color block mt-3">Capaian dibatasi 100%. Persiapan simulasi — belum dipakai menghitung insentif.</small>
-                </div>
-            </div>
-
-            <!-- Kehadiran dari penilaian absensi SIKEP (read-only, persiapan simulasi) -->
-            <div class="col-span-12">
-                <div class="card">
-                    <div class="flex items-center justify-between mb-4">
-                        <h5 class="m-0 font-semibold text-lg">Kehadiran (penilaian absensi SIKEP)</h5>
-                        <Tag value="Persiapan · belum dihitung ke insentif" severity="secondary" />
-                    </div>
-                    <div v-if="kehadiran?.tersedia">
-                        <div class="flex items-end gap-6 mb-4">
-                            <div>
-                                <span class="block text-muted-color text-sm">Persen Kehadiran</span>
-                                <span class="text-primary font-medium text-2xl">{{ kehadiran.persen_kehadiran }}%</span>
-                            </div>
-                            <div>
-                                <span class="block text-muted-color text-sm">Total Pengurangan</span>
-                                <span class="text-surface-900 dark:text-surface-0 font-medium text-xl">{{ kehadiran.total_pengurangan }}%</span>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-12 gap-4">
-                            <div class="col-span-6 md:col-span-2" v-for="a in [
-                                { label: 'Hadir', nilai: kehadiran.hadir },
-                                { label: 'Terlambat', nilai: kehadiran.terlambat },
-                                { label: 'Pulang awal', nilai: kehadiran.pulang_awal },
-                                { label: 'Tidak scan', nilai: kehadiran.tidak_scan },
-                                { label: 'Tanpa ket.', nilai: kehadiran.tanpa_keterangan },
-                                { label: 'Cuti', nilai: kehadiran.cuti },
-                                { label: 'Libur', nilai: kehadiran.libur },
-                                { label: 'Hari kerja', nilai: kehadiran.hari_kerja },
-                            ]" :key="a.label">
-                                <span class="block text-muted-color text-sm">{{ a.label }}</span>
-                                <span class="text-surface-900 dark:text-surface-0 font-medium text-lg">{{ a.nilai }}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <p v-else class="text-muted-color m-0">Data absensi untuk periode ini belum tersedia di SIKEP.</p>
-                </div>
-            </div>
-        </template>
-
         <!-- Tabel Kabid/Admin -->
-        <div v-else class="col-span-12">
+        <div class="col-span-12">
             <div class="card">
                 <DataTable :value="baris" dataKey="katimker_sikep_user_id" :paginator="baris.length > 10" :rows="10" responsiveLayout="scroll" stripedRows>
                     <template #empty>
@@ -186,6 +87,14 @@ const judul = computed(() => ({
                     </Column>
                     <Column header="Total" style="min-width:10rem">
                         <template #body="{ data }"><span class="font-medium text-primary">{{ fmt(data.total_menit) }}</span></template>
+                    </Column>
+                    <Column v-if="konteks === 'kabid'" :exportable="false" header="Aksi" style="min-width:8rem">
+                        <template #body="{ data }">
+                            <Button
+                                label="Detail" icon="pi pi-list" size="small" severity="secondary" outlined
+                                @click="router.visit(route('kabid.rekap.tugas', data.katimker_sikep_user_id))"
+                            />
+                        </template>
                     </Column>
                 </DataTable>
             </div>

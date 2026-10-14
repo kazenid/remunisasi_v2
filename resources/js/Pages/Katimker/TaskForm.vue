@@ -11,6 +11,7 @@ defineOptions({ layout: AppLayout });
 
 const props = defineProps({
     tugas: { type: Object, default: null },
+    kegiatan: { type: Array, default: () => [] },
 });
 
 const toast = useToast();
@@ -35,7 +36,7 @@ function initDate() {
 const form = useForm({
     tanggal: initDate(),
     jenis: props.tugas?.jenis ?? 'utama',
-    judul: props.tugas?.judul ?? '',
+    kegiatan_id: props.tugas?.kegiatan_id ?? null,
     uraian: props.tugas?.uraian ?? '',
     durasi_jam: props.tugas ? Math.floor(props.tugas.durasi_diajukan_menit / 60) : 0,
     durasi_menit: props.tugas ? props.tugas.durasi_diajukan_menit % 60 : 0,
@@ -156,7 +157,7 @@ function transform(data) {
 function submit() {
     const opts = {
         forceFormData: true,
-        onSuccess: () => toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Draf tersimpan.', life: 3000 }),
+        onSuccess: () => toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Tugas tersimpan dan masuk ke penilai.', life: 3000 }),
         onError: (errors) => {
             const pesan = Object.values(errors ?? {})[0];
             toast.add({
@@ -199,7 +200,16 @@ function hapusLampiranLama(att) {
     <div class="grid grid-cols-12 gap-8">
         <div class="col-span-12 xl:col-span-8">
             <div class="card">
-                <h4 class="m-0 mb-6 font-semibold text-xl">{{ isEdit ? 'Ubah Tugas' : 'Catat Tugas Baru' }}</h4>
+                <h4 class="m-0 mb-2 font-semibold text-xl">{{ isEdit ? 'Ubah Tugas' : 'Catat Tugas Baru' }}</h4>
+                <p class="m-0 mb-6 text-muted-color text-sm">
+                    Tugas yang disimpan langsung muncul di penilai. Anda masih dapat mengubahnya selama belum disetujui atau ditolak.
+                </p>
+
+                <Message v-if="isEdit && tugas.status === 'revisi'" severity="warn" :closable="false" class="mb-6">
+                    <span class="font-medium">Diminta revisi:</span> {{ tugas.catatan_penilai || 'Lihat keterangan penilai.' }}
+                    Setelah disimpan, tugas kembali masuk proses penilaian.
+                </Message>
+                <Message v-if="form.errors.form" severity="error" :closable="false" class="mb-6">{{ form.errors.form }}</Message>
 
                 <div class="flex flex-col gap-5">
                     <div class="grid grid-cols-12 gap-4">
@@ -216,9 +226,22 @@ function hapusLampiranLama(att) {
                     </div>
 
                     <div class="flex flex-col gap-2">
-                        <label class="font-medium">Judul</label>
-                        <InputText v-model="form.judul" placeholder="Judul kegiatan" :class="{ 'p-invalid': form.errors.judul }" />
-                        <small v-if="form.errors.judul" class="text-red-500">{{ form.errors.judul }}</small>
+                        <label class="font-medium">Kegiatan</label>
+                        <Select
+                            v-model="form.kegiatan_id"
+                            :options="kegiatan"
+                            optionLabel="nama"
+                            optionValue="id"
+                            placeholder="Pilih kegiatan"
+                            filter
+                            fluid
+                            :class="{ 'p-invalid': form.errors.kegiatan_id }"
+                        />
+                        <small v-if="form.errors.kegiatan_id" class="text-red-500">{{ form.errors.kegiatan_id }}</small>
+                        <small v-else-if="isEdit && !tugas.kegiatan_id" class="text-orange-500">
+                            Tugas lama ("{{ tugas.judul }}") belum terhubung ke master kegiatan. Pilih kegiatan yang sesuai.
+                        </small>
+                        <small v-if="!kegiatan.length" class="text-orange-500">Master kegiatan masih kosong. Hubungi administrator.</small>
                     </div>
 
                     <div class="flex flex-col gap-2">
@@ -244,8 +267,8 @@ function hapusLampiranLama(att) {
                 <h5 class="m-0 mb-4 font-semibold text-lg">Bukti</h5>
 
                 <div class="flex flex-col gap-2 mb-6">
-                    <label class="font-medium">Foto Selfie <span class="text-red-500">*</span></label>
-                    <span class="text-muted-color text-sm mb-2">Wajib saat pengajuan. Boleh ditambah sekarang. Maks {{ MAKS_SELFIE_MB }} MB per foto.</span>
+                    <label class="font-medium">Foto Selfie</label>
+                    <span class="text-muted-color text-sm mb-2">Sebagai bukti kegiatan. Penilai akan diberi peringatan bila kosong. Maks {{ MAKS_SELFIE_MB }} MB per foto.</span>
                     <SelfieCapture :maxSizeMb="MAKS_SELFIE_MB" @captured="onSelfie" @tooLarge="onSelfieTerlaluBesar" />
 
                     <div v-if="selfieBaru.length" class="flex flex-wrap gap-3 mt-2">
@@ -335,7 +358,7 @@ function hapusLampiranLama(att) {
 
         <div class="col-span-12">
             <div class="flex gap-2">
-                <Button :label="isEdit ? 'Simpan Perubahan' : 'Simpan Draf'" icon="pi pi-check" :loading="form.processing" @click="submit" />
+                <Button :label="isEdit ? 'Simpan Perubahan' : 'Simpan'" icon="pi pi-check" :loading="form.processing" @click="submit" />
                 <Button label="Batal" icon="pi pi-times" severity="secondary" @click="router.visit(route('katimker.tugas.index'))" />
             </div>
         </div>

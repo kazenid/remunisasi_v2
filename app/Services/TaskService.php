@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\TaskSubmissionException;
+use App\Models\Activity;
 use App\Models\ApproverMapping;
 use App\Models\Period;
 use App\Models\TaskAttachment;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Operasi tugas kinerja milik Katimker (draf, pengajuan, pengajuan ulang).
+ * Operasi tugas kinerja milik Katimker (simpan = langsung masuk penilai).
  * Durasi diterima jam+menit lalu disimpan sebagai menit (integer).
  */
 class TaskService
@@ -32,72 +33,142 @@ class TaskService
     }
 
     /**
-     * Buat tugas baru berstatus draf milik Katimker.
+     * Simpan tugas baru. Tersimpan = langsung muncul di penilai (status diajukan);
+     * tidak ada langkah "ajukan" terpisah. Bukti boleh dilengkapi kemudian.
      *
-     * @param  array{tanggal:string,jenis:string,judul:string,uraian?:?string,durasi_jam:int,durasi_menit:int,lat?:?float,lng?:?float,akurasi?:?float}  $data
+     * @param  array{tanggal:string,jenis:string,kegiatan_id:int,uraian?:?string,durasi_jam:int,durasi_menit:int,lat?:?float,lng?:?float,akurasi?:?float}  $data
      * @param  array{foto_selfie?:UploadedFile[], dokumen?:UploadedFile[], bukti?:UploadedFile[]}  $files
+     *
+     * @throws TaskSubmissionException periode terkunci / belum dipetakan / kegiatan tidak valid.
      */
-    public function createDraft(int $katimkerSikepUserId, array $data, array $files = []): TaskReport
+    public function create(int $katimkerSikepUserId, array $data, array $files = []): TaskReport
     {
         $tanggal = Carbon::parse($data['tanggal']);
+        $this->pastikanPeriodeTerbuka($tanggal);
+        $kegiatan = $this->kegiatanAktif((int) $data['kegiatan_id']);
 
-        return DB::transaction(function () use ($katimkerSikepUserId, $data, $files, $tanggal) {
+        $kabidId = ApproverMapping::kabidFor($katimkerSikepUserId);
+        if ($kabidId === null) {
+            throw new TaskSubmissionException('Anda belum dipetakan ke Kabid penilai. Hubungi administrator.');
+        }
+
+        return DB::transaction(function () use ($katimkerSikepUserId, $data, $files, $tanggal, $kegiatan, $kabidId) {
             $period = Period::forDate($tanggal);
 
             $task = TaskReport::create([
                 'period_id' => $period->id,
                 'katimker_sikep_user_id' => $katimkerSikepUserId,
+                'kabid_sikep_user_id' => $kabidId,
                 'tanggal' => $tanggal->toDateString(),
                 'jenis' => $data['jenis'],
-                'judul' => $data['judul'],
+                'kegiatan_id' => $kegiatan->id,
+                'judul' => $kegiatan->nama,
                 'uraian' => $data['uraian'] ?? null,
                 'durasi_diajukan_menit' => self::toMinutes((int) $data['durasi_jam'], (int) $data['durasi_menit']),
-                'status' => TaskReport::STATUS_DRAF,
+                'status' => TaskReport::STATUS_DIAJUKAN,
+                'diajukan_pada' => now(),
                 'lat' => $data['lat'] ?? null,
                 'lng' => $data['lng'] ?? null,
                 'akurasi' => $data['akurasi'] ?? null,
             ]);
 
             $this->simpanLampiran($task, $files);
+
+            $this->audit->record($katimkerSikepUserId, 'task.submit', $task, [
+                'status' => ['dari' => null, 'ke' => TaskReport::STATUS_DIAJUKAN],
+                'kabid_sikep_user_id' => $kabidId,
+            ]);
 
             return $task;
         });
     }
 
     /**
-     * Perbarui tugas (hanya saat status draf atau ditolak — ditegakkan di controller/policy).
+     * Perbarui tugas selama belum disetujui/ditolak (otorisasi di Policy).
+     * Tugas berstatus revisi atau menunggu bukti otomatis kembali ke proses penilaian.
      *
      * @param  array<string,mixed>  $data
      * @param  array{foto_selfie?:UploadedFile[], dokumen?:UploadedFile[], bukti?:UploadedFile[]}  $files
+     *
+     * @throws TaskSubmissionException
      */
-    public function updateDraft(TaskReport $task, array $data, array $files = []): TaskReport
+    public function update(TaskReport $task, array $data, array $files = []): TaskReport
     {
-        return DB::transaction(function () use ($task, $data, $files) {
-            $tanggal = Carbon::parse($data['tanggal']);
+        $tanggal = Carbon::parse($data['tanggal']);
+        $this->pastikanPeriodeTerbuka($tanggal);
+        $kegiatan = $this->kegiatanAktif((int) $data['kegiatan_id']);
+
+        $kabidId = $task->kabid_sikep_user_id ?? ApproverMapping::kabidFor($task->katimker_sikep_user_id);
+        if ($kabidId === null) {
+            throw new TaskSubmissionException('Anda belum dipetakan ke Kabid penilai. Hubungi administrator.');
+        }
+
+        $statusLama = $task->status;
+
+        return DB::transaction(function () use ($task, $data, $files, $tanggal, $kegiatan, $kabidId, $statusLama) {
             $period = Period::forDate($tanggal);
 
-            $task->update([
+            $attrs = [
                 'period_id' => $period->id,
                 'tanggal' => $tanggal->toDateString(),
                 'jenis' => $data['jenis'],
-                'judul' => $data['judul'],
+                'kegiatan_id' => $kegiatan->id,
+                'judul' => $kegiatan->nama,
                 'uraian' => $data['uraian'] ?? null,
                 'durasi_diajukan_menit' => self::toMinutes((int) $data['durasi_jam'], (int) $data['durasi_menit']),
                 'lat' => $data['lat'] ?? null,
                 'lng' => $data['lng'] ?? null,
                 'akurasi' => $data['akurasi'] ?? null,
-            ]);
+            ];
 
+            if ($statusLama !== TaskReport::STATUS_DIAJUKAN) {
+                // revisi / menunggu bukti → kembali ke proses penilaian.
+                $attrs += [
+                    'status' => TaskReport::STATUS_DIAJUKAN,
+                    'kabid_sikep_user_id' => $kabidId,
+                    'diajukan_pada' => now(),
+                    'catatan_penilai' => null,
+                    'dinilai_pada' => null,
+                ];
+            }
+
+            $task->update($attrs);
             $this->simpanLampiran($task, $files);
+
+            $this->audit->record(
+                $task->katimker_sikep_user_id,
+                $statusLama === TaskReport::STATUS_DIAJUKAN ? 'task.update' : 'task.submit',
+                $task,
+                ['status' => ['dari' => $statusLama, 'ke' => TaskReport::STATUS_DIAJUKAN]],
+            );
 
             return $task->refresh();
         });
     }
 
+    /** @throws TaskSubmissionException */
+    private function pastikanPeriodeTerbuka(Carbon $tanggal): void
+    {
+        if (Period::lockedFor((int) $tanggal->year, (int) $tanggal->month)) {
+            throw new TaskSubmissionException('Periode tugas ini sudah melewati cut-off, input tidak dapat dilakukan.');
+        }
+    }
+
+    /** @throws TaskSubmissionException */
+    private function kegiatanAktif(int $id): Activity
+    {
+        $kegiatan = Activity::query()->aktif()->find($id);
+        if ($kegiatan === null) {
+            throw new TaskSubmissionException('Kegiatan yang dipilih tidak valid atau sudah nonaktif.');
+        }
+
+        return $kegiatan;
+    }
+
     /**
      * Hapus tugas beserta berkas buktinya.
      */
-    public function deleteDraft(TaskReport $task): void
+    public function hapus(TaskReport $task): void
     {
         DB::transaction(function () use ($task) {
             foreach ($task->attachments as $att) {
@@ -114,54 +185,6 @@ class TaskService
     {
         Storage::disk(self::DISK)->delete($attachment->path);
         $attachment->delete();
-    }
-
-    /**
-     * Ajukan tugas ke Kabid (dari status draf atau ditolak → diajukan).
-     *
-     * Syarat: durasi > 0, minimal satu foto selfie, dan Katimker sudah
-     * dipetakan ke seorang Kabid. Men-snapshot kabid penilai & waktu pengajuan.
-     *
-     * @throws TaskSubmissionException bila syarat tidak terpenuhi.
-     */
-    public function submit(TaskReport $task): TaskReport
-    {
-        if (! $task->isEditable()) {
-            throw new TaskSubmissionException('Tugas ini tidak dapat diajukan dari statusnya saat ini.');
-        }
-
-        if ($task->durasi_diajukan_menit <= 0) {
-            throw new TaskSubmissionException('Durasi harus lebih dari 0 sebelum diajukan.');
-        }
-
-        if (! $task->hasSelfie()) {
-            throw new TaskSubmissionException('Wajib melampirkan minimal satu foto selfie sebelum mengajukan.');
-        }
-
-        $kabidId = ApproverMapping::kabidFor($task->katimker_sikep_user_id);
-        if ($kabidId === null) {
-            throw new TaskSubmissionException('Anda belum dipetakan ke Kabid penilai. Hubungi administrator.');
-        }
-
-        $statusLama = $task->status;
-
-        return DB::transaction(function () use ($task, $kabidId, $statusLama) {
-            $task->update([
-                'status' => TaskReport::STATUS_DIAJUKAN,
-                'kabid_sikep_user_id' => $kabidId,
-                'diajukan_pada' => now(),
-                // Bersihkan jejak penilaian sebelumnya bila ini pengajuan ulang.
-                'catatan_penilai' => null,
-                'dinilai_pada' => null,
-            ]);
-
-            $this->audit->record($task->katimker_sikep_user_id, 'task.submit', $task, [
-                'status' => ['dari' => $statusLama, 'ke' => TaskReport::STATUS_DIAJUKAN],
-                'kabid_sikep_user_id' => $kabidId,
-            ]);
-
-            return $task->refresh();
-        });
     }
 
     /**

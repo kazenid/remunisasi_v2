@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Kabid;
 
 use App\Exceptions\ReviewException;
 use App\Http\Controllers\Controller;
+use App\Models\Activity;
 use App\Models\ApproverMapping;
 use App\Models\Sikep\SikepUser;
 use App\Models\TaskReport;
@@ -12,6 +13,7 @@ use App\Services\ReviewService;
 use App\Services\TaskService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -36,6 +38,7 @@ class ReviewController extends Controller
                 'jenis' => $t->jenis,
                 'durasi_diajukan_menit' => $t->durasi_diajukan_menit,
                 'attachments_count' => $t->attachments_count,
+                'peringatan' => $t->peringatanBukti(),
                 'katimker_nama' => $katimkerNama[$t->katimker_sikep_user_id] ?? ('#'.$t->katimker_sikep_user_id),
             ]),
         ]);
@@ -58,6 +61,9 @@ class ReviewController extends Controller
                 'durasi_diajukan_menit' => $tugas->durasi_diajukan_menit,
                 'durasi_disetujui_menit' => $tugas->durasi_disetujui_menit,
                 'status' => $tugas->status,
+                'dapat_dinilai' => request()->user()->can('review', $tugas),
+                'terkunci' => $tugas->periodeTerkunci(),
+                'peringatan' => $tugas->peringatanBukti(),
                 'catatan_penilai' => $tugas->catatan_penilai,
                 'lat' => $tugas->lat,
                 'lng' => $tugas->lng,
@@ -82,8 +88,7 @@ class ReviewController extends Controller
         $data = $request->validate([
             'durasi_jam' => 'required|integer|min:0|max:24',
             'durasi_menit' => 'required|integer|min:0|max:59',
-            'alasan' => 'nullable|string',
-            'catatan' => 'nullable|string',
+            'keterangan' => 'nullable|string',
             'jenis' => 'nullable|in:utama,tambahan',
             'alasan_jenis' => 'nullable|string',
         ]);
@@ -92,7 +97,7 @@ class ReviewController extends Controller
 
         try {
             $this->service->approve(
-                $tugas, $menit, $data['alasan'] ?? null, $data['catatan'] ?? null,
+                $tugas, $menit, $data['keterangan'] ?? null,
                 $request->user()->sikep_user_id,
                 $data['jenis'] ?? null, $data['alasan_jenis'] ?? null,
             );
@@ -101,6 +106,25 @@ class ReviewController extends Controller
         }
 
         return redirect()->route('kabid.penilaian.index')->with('success', 'Tugas disetujui.');
+    }
+
+    public function revisi(Request $request, TaskReport $tugas): RedirectResponse
+    {
+        $this->authorize('review', $tugas);
+
+        $data = $request->validate([
+            'keterangan' => 'required|string',
+        ], [
+            'keterangan.required' => 'Keterangan revisi wajib diisi.',
+        ]);
+
+        try {
+            $this->service->revisi($tugas, $data['keterangan'], $request->user()->sikep_user_id);
+        } catch (ReviewException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('kabid.penilaian.index')->with('success', 'Tugas dikembalikan untuk direvisi.');
     }
 
     public function ubahJenis(Request $request, TaskReport $tugas): RedirectResponse
@@ -128,13 +152,13 @@ class ReviewController extends Controller
         $this->authorize('review', $tugas);
 
         $data = $request->validate([
-            'catatan' => 'required|string',
+            'keterangan' => 'required|string',
         ], [
-            'catatan.required' => 'Catatan penolakan wajib diisi.',
+            'keterangan.required' => 'Keterangan penolakan wajib diisi.',
         ]);
 
         try {
-            $this->service->reject($tugas, $data['catatan'], $request->user()->sikep_user_id);
+            $this->service->reject($tugas, $data['keterangan'], $request->user()->sikep_user_id);
         } catch (ReviewException $e) {
             return back()->with('error', $e->getMessage());
         }
@@ -160,6 +184,7 @@ class ReviewController extends Controller
 
         return Inertia::render('Kabid/Penugasan', [
             'binaan' => $binaan,
+            'kegiatan' => Activity::query()->aktif()->orderBy('nama')->get(['id', 'nama']),
         ]);
     }
 
@@ -168,8 +193,10 @@ class ReviewController extends Controller
         $data = $request->validate([
             'katimker_sikep_user_id' => 'required|integer',
             'tanggal' => 'required|date',
-            'judul' => 'required|string|max:255',
+            'kegiatan_id' => ['required', 'integer', Rule::exists('activities', 'id')->where('aktif', true)],
             'uraian' => 'nullable|string',
+        ], [
+            'kegiatan_id.required' => 'Kegiatan wajib dipilih.',
         ]);
 
         try {

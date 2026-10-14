@@ -147,7 +147,7 @@ Status setiap tugas juga dapat ditampilkan bila keputusan dibuat per tugas. Sist
 - Bukti wajib untuk tugas tambahan; bukti untuk tugas utama dapat diwajibkan berdasarkan kebijakan unit atau kategori.
 - Koordinat tidak wajib untuk tugas jarak jauh atau ketika perangkat tidak memberikan izin lokasi.
 - Pencapaian jam dan insentif dihitung dari jam yang telah disetujui final, bukan sekadar jam yang diajukan.
-- Cut-off pengajuan/revisi tanggal 10 dan target pencairan tanggal 15 mengikuti notula, dengan kalender dan zona waktu operasional yang dapat dikonfigurasi.
+- Cut-off pengajuan/revisi tanggal 10 dan target realisasi tanggal 15 mengikuti notula, dengan kalender dan zona waktu operasional yang dapat dikonfigurasi.
 - Data yang melewati cut-off mengikuti kebijakan yang harus ditentukan (misalnya dikunci atau perlu pembukaan khusus dengan audit).
 
 ## 9. Alur Utama

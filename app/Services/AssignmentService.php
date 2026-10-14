@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Activity;
 use App\Models\ApproverMapping;
 use App\Models\Period;
 use App\Models\TaskReport;
@@ -19,7 +20,7 @@ class AssignmentService
     public function __construct(private readonly AuditLogger $audit) {}
 
     /**
-     * @param  array{tanggal:string, judul:string, uraian?:?string}  $data
+     * @param  array{tanggal:string, kegiatan_id:int, uraian?:?string}  $data
      *
      * @throws InvalidArgumentException bila aktor tidak berwenang atas Katimker.
      */
@@ -33,7 +34,16 @@ class AssignmentService
 
         $tanggal = Carbon::parse($data['tanggal']);
 
-        return DB::transaction(function () use ($aktorSikepUserId, $katimkerSikepUserId, $data, $tanggal, $kabidPembina) {
+        if (Period::lockedFor((int) $tanggal->year, (int) $tanggal->month)) {
+            throw new InvalidArgumentException('Periode tersebut sudah melewati cut-off, penugasan tidak dapat dibuat.');
+        }
+
+        $kegiatan = Activity::query()->aktif()->find($data['kegiatan_id']);
+        if ($kegiatan === null) {
+            throw new InvalidArgumentException('Kegiatan yang dipilih tidak valid atau sudah nonaktif.');
+        }
+
+        return DB::transaction(function () use ($aktorSikepUserId, $katimkerSikepUserId, $data, $tanggal, $kabidPembina, $kegiatan) {
             $period = Period::forDate($tanggal);
 
             $task = TaskReport::create([
@@ -45,7 +55,8 @@ class AssignmentService
                 'jenis_terkunci' => true,
                 'tanggal' => $tanggal->toDateString(),
                 'jenis' => TaskReport::JENIS_TAMBAHAN,
-                'judul' => $data['judul'],
+                'kegiatan_id' => $kegiatan->id,
+                'judul' => $kegiatan->nama,
                 'uraian' => $data['uraian'] ?? null,
                 'durasi_diajukan_menit' => 0, // diisi Katimker
                 'status' => TaskReport::STATUS_MENUNGGU_BUKTI,

@@ -56,65 +56,109 @@ class IncentiveCalculatorService
             ->get()
             ->keyBy('katimker_sikep_user_id');
 
-        return $katimker->map(function (array $k) use ($rekap, $overrides, $cfg, $nominalDasar, $tahun, $bulan) {
-            $id = $k['sikep_user_id'];
+        return $katimker->map(fn (array $k) => $this->hitungBaris(
+            $k,
+            $rekap->get($k['sikep_user_id'], ['utama_menit' => 0, 'tambahan_menit' => 0]),
+            $overrides->get($k['sikep_user_id']),
+            $cfg,
+            $nominalDasar,
+            $tahun,
+            $bulan,
+        ))->values();
+    }
 
-            // Komponen kehadiran (panggilan SIKEP per orang — dapat diterima).
+    /**
+     * Hitung simulasi insentif SATU Katimker (mis. untuk halaman rekap/slip pribadi).
+     *
+     * @return array<string,mixed>
+     */
+    public function hitungSatu(int $sikepUserId, string $nama, ?int $noAbsen, int $tahun, int $bulan): array
+    {
+        $cfg = IncentiveConfig::global();
+        $override = IncentivePlafonOverride::query()
+            ->where('katimker_sikep_user_id', $sikepUserId)
+            ->where('tahun', $tahun)
+            ->where('bulan', $bulan)
+            ->first();
+
+        return $this->hitungBaris(
+            ['sikep_user_id' => $sikepUserId, 'nama' => $nama, 'no_absen' => $noAbsen],
+            $this->recap->forPeriod($sikepUserId, $tahun, $bulan),
+            $override,
+            $cfg,
+            (int) ($cfg->nominal_dasar ?? 0),
+            $tahun,
+            $bulan,
+        );
+    }
+
+    /**
+     * @param  array{sikep_user_id:int,nama:string,no_absen:?int}  $k
+     * @param  array{utama_menit?:int,tambahan_menit?:int}  $r
+     * @return array<string,mixed>
+     */
+    private function hitungBaris(array $k, array $r, ?IncentivePlafonOverride $override, IncentiveConfig $cfg, int $nominalDasar, int $tahun, int $bulan): array
+    {
+        $id = $k['sikep_user_id'];
+
+        // Komponen kehadiran (panggilan SIKEP per orang — dapat diterima).
+        try {
             $absen = $k['no_absen'] !== null
                 ? $this->attendance->nilai($id, (int) $k['no_absen'], $tahun, $bulan)
                 : ['tersedia' => false, 'persen_kehadiran' => 0.0];
+        } catch (\Throwable) {
+            $absen = ['tersedia' => false, 'persen_kehadiran' => 0.0]; // SIKEP tak terjangkau.
+        }
 
-            $kehadiranTersedia = (bool) ($absen['tersedia'] ?? false);
-            $persenKehadiran = $kehadiranTersedia
-                ? max(0.0, min(100.0, (float) ($absen['persen_kehadiran'] ?? 0)))
-                : 0.0;
+        $kehadiranTersedia = (bool) ($absen['tersedia'] ?? false);
+        $persenKehadiran = $kehadiranTersedia
+            ? max(0.0, min(100.0, (float) ($absen['persen_kehadiran'] ?? 0)))
+            : 0.0;
 
-            // Rekap menit tugas.
-            $r = $rekap->get($id, ['utama_menit' => 0, 'tambahan_menit' => 0]);
-            $utamaMenit = (int) ($r['utama_menit'] ?? 0);
-            $tambahanMenit = (int) ($r['tambahan_menit'] ?? 0);
+        // Rekap menit tugas.
+        $utamaMenit = (int) ($r['utama_menit'] ?? 0);
+        $tambahanMenit = (int) ($r['tambahan_menit'] ?? 0);
 
-            // Target efektif (individu periodik → individu umum → global).
-            $target = $this->target->efektif($id, $tahun, $bulan);
-            $targetUtama = $target['utama_menit'];
-            $targetTambahan = $target['tambahan_menit'];
+        // Target efektif (individu periodik → individu umum → global).
+        $target = $this->target->efektif($id, $tahun, $bulan);
+        $targetUtama = $target['utama_menit'];
+        $targetTambahan = $target['tambahan_menit'];
 
-            $targetUtamaBelumDiset = ! ($targetUtama > 0);
-            $targetTambahanBelumDiset = ! ($targetTambahan > 0);
+        $targetUtamaBelumDiset = ! ($targetUtama > 0);
+        $targetTambahanBelumDiset = ! ($targetTambahan > 0);
 
-            $persenUtama = $targetUtamaBelumDiset ? 0.0 : min(100.0, $utamaMenit / $targetUtama * 100);
-            $persenTambahan = $targetTambahanBelumDiset ? 0.0 : min(100.0, $tambahanMenit / $targetTambahan * 100);
+        $persenUtama = $targetUtamaBelumDiset ? 0.0 : min(100.0, $utamaMenit / $targetUtama * 100);
+        $persenTambahan = $targetTambahanBelumDiset ? 0.0 : min(100.0, $tambahanMenit / $targetTambahan * 100);
 
-            $persenTotal = (
-                $persenKehadiran * $cfg->bobot_kehadiran
-                + $persenUtama * $cfg->bobot_utama
-                + $persenTambahan * $cfg->bobot_tambahan
-            ) / 100;
+        $persenTotal = (
+            $persenKehadiran * $cfg->bobot_kehadiran
+            + $persenUtama * $cfg->bobot_utama
+            + $persenTambahan * $cfg->bobot_tambahan
+        ) / 100;
 
-            $plafon = isset($overrides[$id]) ? (int) $overrides[$id]->nominal : $nominalDasar;
-            $insentif = (int) round($plafon * $persenTotal / 100);
+        $plafon = $override ? (int) $override->nominal : $nominalDasar;
+        $insentif = (int) round($plafon * $persenTotal / 100);
 
-            return [
-                'katimker_sikep_user_id' => $id,
-                'nama' => $k['nama'],
-                'persen_kehadiran' => round($persenKehadiran, 2),
-                'kehadiran_tersedia' => $kehadiranTersedia,
-                'utama_menit' => $utamaMenit,
-                'target_utama_menit' => $targetUtama,
-                'persen_utama' => round($persenUtama, 2),
-                'target_utama_belum_diset' => $targetUtamaBelumDiset,
-                'tambahan_menit' => $tambahanMenit,
-                'target_tambahan_menit' => $targetTambahan,
-                'persen_tambahan' => round($persenTambahan, 2),
-                'target_tambahan_belum_diset' => $targetTambahanBelumDiset,
-                'persen_total' => round($persenTotal, 2),
-                'nominal_plafon' => $plafon,
-                'nominal_insentif' => $insentif,
-                'bobot_kehadiran' => $cfg->bobot_kehadiran,
-                'bobot_utama' => $cfg->bobot_utama,
-                'bobot_tambahan' => $cfg->bobot_tambahan,
-            ];
-        })->values();
+        return [
+            'katimker_sikep_user_id' => $id,
+            'nama' => $k['nama'],
+            'persen_kehadiran' => round($persenKehadiran, 2),
+            'kehadiran_tersedia' => $kehadiranTersedia,
+            'utama_menit' => $utamaMenit,
+            'target_utama_menit' => $targetUtama,
+            'persen_utama' => round($persenUtama, 2),
+            'target_utama_belum_diset' => $targetUtamaBelumDiset,
+            'tambahan_menit' => $tambahanMenit,
+            'target_tambahan_menit' => $targetTambahan,
+            'persen_tambahan' => round($persenTambahan, 2),
+            'target_tambahan_belum_diset' => $targetTambahanBelumDiset,
+            'persen_total' => round($persenTotal, 2),
+            'nominal_plafon' => $plafon,
+            'nominal_insentif' => $insentif,
+            'bobot_kehadiran' => $cfg->bobot_kehadiran,
+            'bobot_utama' => $cfg->bobot_utama,
+            'bobot_tambahan' => $cfg->bobot_tambahan,
+        ];
     }
 
     /**

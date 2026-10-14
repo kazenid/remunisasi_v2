@@ -1,7 +1,7 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
-import DurationInput from '@/Components/form/DurationInput.vue';
 import { Head, useForm, router, usePage } from '@inertiajs/vue3';
+import { statusMeta } from '@/lib/format';
 import { useToast } from 'primevue/usetoast';
 import { computed, ref, watch } from 'vue';
 
@@ -27,6 +27,11 @@ function bukaSelfie(att) {
     selfieDialog.value = true;
 }
 
+function kembali() {
+    if (window.history.length > 1) window.history.back();
+    else router.visit(route('kabid.penilaian.index'));
+}
+
 const jenisLabel = { utama: 'Tugas Utama', tambahan: 'Tugas Tambahan' };
 
 function formatDurasi(menit) {
@@ -36,41 +41,16 @@ function formatDurasi(menit) {
     return [j ? `${j} jam` : null, m ? `${m} menit` : null].filter(Boolean).join(' ') || '0 menit';
 }
 
-// Form approve: default durasi disetujui = durasi diajukan.
-const approveForm = useForm({
-    durasi_jam: Math.floor(props.tugas.durasi_diajukan_menit / 60),
-    durasi_menit: props.tugas.durasi_diajukan_menit % 60,
-    alasan: '',
-    catatan: '',
-    jenis: props.tugas.jenis,
-    alasan_jenis: '',
-});
-
-const rejectForm = useForm({ catatan: '' });
-
 // Form ubah jenis (aksi terpisah).
 const jenisOptions = [
     { label: 'Tugas Utama', value: 'utama' },
     { label: 'Tugas Tambahan', value: 'tambahan' },
 ];
 const jenisForm = useForm({ jenis: props.tugas.jenis, alasan: '' });
-const jenisBerubahApprove = computed(() => approveForm.jenis !== props.tugas.jenis);
-
 function ubahJenis() {
     jenisForm.post(route('kabid.penilaian.jenis', props.tugas.id), {
         preserveScroll: true,
     });
-}
-
-const totalDisetujui = computed(() => (approveForm.durasi_jam ?? 0) * 60 + (approveForm.durasi_menit ?? 0));
-const dikurangi = computed(() => totalDisetujui.value < props.tugas.durasi_diajukan_menit);
-
-function setujui() {
-    approveForm.post(route('kabid.penilaian.approve', props.tugas.id));
-}
-
-function tolak() {
-    rejectForm.post(route('kabid.penilaian.reject', props.tugas.id));
 }
 
 // Umpan balik toast digerakkan oleh flash server (pola flash-only seperti TaskList),
@@ -98,7 +78,7 @@ watch(
             <div class="card">
                 <div class="flex items-center justify-between mb-4">
                     <h4 class="m-0 font-semibold text-xl">Rincian Tugas</h4>
-                    <Button icon="pi pi-arrow-left" label="Kembali" severity="secondary" size="small" @click="router.visit(route('kabid.penilaian.index'))" />
+                    <Button icon="pi pi-arrow-left" label="Kembali" severity="secondary" size="small" @click="kembali" />
                 </div>
 
                 <dl class="grid grid-cols-12 gap-y-4">
@@ -111,7 +91,7 @@ watch(
                     <dt class="col-span-4 text-muted-color">Jenis</dt>
                     <dd class="col-span-8"><Tag :value="jenisLabel[tugas.jenis]" :severity="tugas.jenis === 'utama' ? 'info' : 'warn'" /></dd>
 
-                    <dt class="col-span-4 text-muted-color">Judul</dt>
+                    <dt class="col-span-4 text-muted-color">Kegiatan</dt>
                     <dd class="col-span-8 font-medium">{{ tugas.judul }}</dd>
 
                     <dt class="col-span-4 text-muted-color">Uraian</dt>
@@ -173,7 +153,7 @@ watch(
         <!-- Form penilaian -->
         <div class="col-span-12 xl:col-span-5">
             <!-- Klasifikasi (aksi terpisah) -->
-            <div class="card">
+            <div v-if="tugas.dapat_dinilai" class="card">
                 <h4 class="m-0 mb-4 font-semibold text-xl">Klasifikasi</h4>
                 <div class="flex flex-col gap-3">
                     <SelectButton v-model="jenisForm.jenis" :options="jenisOptions" optionLabel="label" optionValue="value" :allowEmpty="false" />
@@ -190,48 +170,33 @@ watch(
             </div>
 
             <div class="card">
-                <h4 class="m-0 mb-4 font-semibold text-xl">Setujui</h4>
-                <div class="flex flex-col gap-4">
-                    <div class="flex flex-col gap-2">
-                        <label class="font-medium">Jam Disetujui</label>
-                        <DurationInput v-model:jam="approveForm.durasi_jam" v-model:menit="approveForm.durasi_menit" />
-                        <small class="text-muted-color">Maksimal sama dengan jam diajukan ({{ formatDurasi(tugas.durasi_diajukan_menit) }}).</small>
+                <h4 class="m-0 mb-4 font-semibold text-xl">Penilaian</h4>
+
+                <template v-if="tugas.dapat_dinilai">
+                    <p class="mt-0 mb-4 text-muted-color text-sm">
+                        Pilih keputusan: <b>Setujui</b> (final), <b>Revisi</b> (dikembalikan, dapat diajukan lagi), atau <b>Tolak</b> (final).
+                    </p>
+                    <Message v-if="tugas.peringatan.length" severity="warn" :closable="false" class="mb-4">
+                        Bukti belum lengkap: {{ tugas.peringatan.join(' ') }}
+                    </Message>
+                    <NilaiTugas :tugas="tugas" />
+                </template>
+
+                <template v-else>
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="text-muted-color">Status:</span>
+                        <Tag :value="statusMeta[tugas.status]?.label ?? tugas.status" :severity="statusMeta[tugas.status]?.severity" />
                     </div>
-
-                    <div class="flex flex-col gap-2">
-                        <label class="font-medium">Jenis saat Menyetujui</label>
-                        <SelectButton v-model="approveForm.jenis" :options="jenisOptions" optionLabel="label" optionValue="value" :allowEmpty="false" />
-                        <div v-if="jenisBerubahApprove" class="flex flex-col gap-2 mt-1">
-                            <label class="font-medium">Alasan Perubahan Jenis <span class="text-red-500">*</span></label>
-                            <Textarea v-model="approveForm.alasan_jenis" rows="2" autoResize />
-                        </div>
-                    </div>
-
-                    <div v-if="dikurangi" class="flex flex-col gap-2">
-                        <label class="font-medium">Alasan Pengurangan <span class="text-red-500">*</span></label>
-                        <Textarea v-model="approveForm.alasan" rows="2" autoResize :class="{ 'p-invalid': approveForm.errors.alasan }" />
-                        <small class="text-muted-color">Wajib karena jam disetujui lebih kecil dari diajukan.</small>
-                    </div>
-
-                    <div class="flex flex-col gap-2">
-                        <label class="font-medium">Catatan <span class="text-muted-color font-normal">(opsional)</span></label>
-                        <Textarea v-model="approveForm.catatan" rows="2" autoResize />
-                    </div>
-
-                    <Button label="Setujui" icon="pi pi-check" severity="success" :loading="approveForm.processing" @click="setujui" />
-                </div>
-
-                <Divider />
-
-                <h4 class="m-0 mb-4 font-semibold text-xl">Tolak</h4>
-                <div class="flex flex-col gap-4">
-                    <div class="flex flex-col gap-2">
-                        <label class="font-medium">Catatan Penolakan <span class="text-red-500">*</span></label>
-                        <Textarea v-model="rejectForm.catatan" rows="3" autoResize :class="{ 'p-invalid': rejectForm.errors.catatan }" />
-                        <small v-if="rejectForm.errors.catatan" class="text-red-500">{{ rejectForm.errors.catatan }}</small>
-                    </div>
-                    <Button label="Tolak" icon="pi pi-times" severity="danger" outlined :loading="rejectForm.processing" @click="tolak" />
-                </div>
+                    <Message v-if="tugas.terkunci && tugas.status === 'diajukan'" severity="warn" :closable="false" class="mb-3">
+                        Periode tugas ini sudah melewati cut-off, penilaian tidak dapat dilakukan.
+                    </Message>
+                    <dl v-if="tugas.status !== 'diajukan'" class="grid grid-cols-12 gap-y-3 m-0">
+                        <dt class="col-span-5 text-muted-color">Jam disetujui</dt>
+                        <dd class="col-span-7 m-0">{{ formatDurasi(tugas.durasi_disetujui_menit) }}</dd>
+                        <dt class="col-span-5 text-muted-color">Keterangan</dt>
+                        <dd class="col-span-7 m-0 whitespace-pre-line">{{ tugas.catatan_penilai || '—' }}</dd>
+                    </dl>
+                </template>
             </div>
         </div>
     </div>

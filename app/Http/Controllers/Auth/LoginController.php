@@ -6,10 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Sikep\RoleResolver;
 use App\Services\Sikep\SikepAuthService;
+use App\Services\TurnstileVerifier;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -19,11 +22,21 @@ class LoginController extends Controller
     public function __construct(
         private readonly SikepAuthService $sikepAuth,
         private readonly RoleResolver $roleResolver,
+        private readonly TurnstileVerifier $turnstile,
     ) {}
+
+    /** Batas gagal per (akun + IP) dan per IP dalam jendela DECAY_DETIK. */
+    private const MAKS_GAGAL_AKUN = 5;
+
+    private const MAKS_GAGAL_IP = 20;
+
+    private const DECAY_DETIK = 900;
 
     public function create(): Response
     {
-        return Inertia::render('Auth/Login');
+        return Inertia::render('Auth/Login', [
+            'turnstileSiteKey' => $this->turnstile->siteKey(),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -31,7 +44,26 @@ class LoginController extends Controller
         $credentials = $request->validate([
             'login' => 'required|string',
             'password' => 'required|string',
+            'turnstile_token' => 'nullable|string',
         ]);
+
+        $kunciAkun = 'login:'.Str::lower($credentials['login']).'|'.$request->ip();
+        $kunciIp = 'login-ip:'.$request->ip();
+
+        foreach ([[$kunciAkun, self::MAKS_GAGAL_AKUN], [$kunciIp, self::MAKS_GAGAL_IP]] as [$kunci, $maks]) {
+            if (RateLimiter::tooManyAttempts($kunci, $maks)) {
+                $detik = RateLimiter::availableIn($kunci);
+                throw ValidationException::withMessages([
+                    'login' => 'Terlalu banyak percobaan masuk. Coba lagi dalam '.ceil($detik / 60).' menit.',
+                ]);
+            }
+        }
+
+        if (! $this->turnstile->verify($credentials['turnstile_token'] ?? null, $request->ip())) {
+            throw ValidationException::withMessages([
+                'login' => 'Verifikasi keamanan gagal. Muat ulang halaman lalu coba lagi.',
+            ]);
+        }
 
         try {
             $sikepUser = $this->sikepAuth->attempt($credentials['login'], $credentials['password']);
@@ -44,11 +76,16 @@ class LoginController extends Controller
         }
 
         if ($sikepUser === null) {
+            RateLimiter::hit($kunciAkun, self::DECAY_DETIK);
+            RateLimiter::hit($kunciIp, self::DECAY_DETIK);
+
             // Pesan generik: tidak membedakan user tidak ada vs password salah.
             throw ValidationException::withMessages([
                 'login' => 'Kredensial yang diberikan tidak cocok.',
             ]);
         }
+
+        RateLimiter::clear($kunciAkun);
 
         // Gerbang record lokal (SATU-SATUNYA penentu pesan 2.2/2.3/2.4). Muat
         // `role` + `aktif` eksplisit agar tak ada lazy-load tambahan.

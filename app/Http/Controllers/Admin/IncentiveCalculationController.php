@@ -7,11 +7,14 @@ use App\Models\ApproverMapping;
 use App\Models\IncentiveConfig;
 use App\Models\IncentivePlafonOverride;
 use App\Models\IncentiveResult;
+use App\Services\AuditLogger;
 use App\Services\IncentiveCalculatorService;
+use App\Services\IncentiveReportService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Halaman "Hitung Insentif": simulasi perhitungan insentif per Katimker per
@@ -39,6 +42,33 @@ class IncentiveCalculationController extends Controller
             'nominal_dasar' => (int) (IncentiveConfig::global()->nominal_dasar ?? 0),
             'difinalkan' => $difinalkan,
         ]);
+    }
+
+    /** Halaman laporan insentif per periode (dapat dicetak). */
+    public function laporan(Request $request, IncentiveReportService $laporan): Response
+    {
+        $this->authorize('manage', ApproverMapping::class);
+
+        [$tahun, $bulan] = $this->periode($request);
+
+        return Inertia::render('Admin/LaporanInsentif', [
+            'laporan' => $laporan->susun($tahun, $bulan),
+        ]);
+    }
+
+    /** Unduh laporan insentif periode sebagai berkas Excel (.xlsx). */
+    public function unduh(Request $request, IncentiveReportService $laporan, AuditLogger $audit): BinaryFileResponse
+    {
+        $this->authorize('manage', ApproverMapping::class);
+
+        [$tahun, $bulan] = $this->periode($request);
+        $path = $laporan->buatExcel($tahun, $bulan);
+
+        $audit->record($request->user()->sikep_user_id, 'incentive.export', null, ['periode' => sprintf('%04d-%02d', $tahun, $bulan)]);
+
+        return response()
+            ->download($path, sprintf('laporan-insentif-%04d-%02d.xlsx', $tahun, $bulan))
+            ->deleteFileAfterSend(true);
     }
 
     public function plafon(Request $request): RedirectResponse

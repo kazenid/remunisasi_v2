@@ -64,7 +64,7 @@ function simpan() {
                 <div class="flex flex-wrap items-end justify-between gap-4 mb-4">
                     <div>
                         <h4 class="m-0 font-semibold text-xl">Manajemen Periode</h4>
-                        <span class="text-muted-color text-sm">Atur cut-off, target pencairan, dan status kunci tiap periode.</span>
+                        <span class="text-muted-color text-sm">Atur cut-off, target realisasi, dan status kunci tiap periode. Cut-off periode jatuh di bulan berikutnya (bawaan tgl 10): mulai tanggal itu input dan penilaian periode tersebut ditutup.</span>
                     </div>
                     <div class="flex items-end gap-2">
                         <div class="flex flex-col gap-1">
@@ -89,7 +89,7 @@ function simpan() {
                     <Column field="cut_off" header="Cut-off" style="min-width:10rem">
                         <template #body="{ data }">{{ data.cut_off ?? '—' }}</template>
                     </Column>
-                    <Column field="target_cair" header="Target Cair" style="min-width:10rem">
+                    <Column field="target_cair" header="Target Realisasi" style="min-width:10rem">
                         <template #body="{ data }">{{ data.target_cair ?? '—' }}</template>
                     </Column>
                     <Column header="Status" style="min-width:9rem">
@@ -114,7 +114,7 @@ function simpan() {
                 <DatePicker v-model="editForm.cut_off" dateFormat="dd/mm/yy" showIcon fluid />
             </div>
             <div class="flex flex-col gap-2">
-                <label class="font-medium">Target Pencairan</label>
+                <label class="font-medium">Target Realisasi</label>
                 <DatePicker v-model="editForm.target_cair" dateFormat="dd/mm/yy" showIcon fluid />
             </div>
             <div class="flex flex-col gap-2">

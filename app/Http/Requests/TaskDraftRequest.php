@@ -7,9 +7,8 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Validasi pembuatan/pembaruan tugas (draf).
- * Catatan: foto selfie WAJIB saat pengajuan (Tugas 7), bukan saat draf —
- * sehingga draf boleh disimpan tanpa bukti lengkap.
+ * Validasi penyimpanan/pembaruan tugas. Tersimpan = langsung masuk penilai;
+ * bukti (selfie dll.) tidak diwajibkan di sini, penilai diberi peringatan bila kosong.
  */
 class TaskDraftRequest extends FormRequest
 {
@@ -23,7 +22,7 @@ class TaskDraftRequest extends FormRequest
         return [
             'tanggal' => ['required', 'date'],
             'jenis' => ['required', Rule::in([TaskReport::JENIS_UTAMA, TaskReport::JENIS_TAMBAHAN])],
-            'judul' => ['required', 'string', 'max:255'],
+            'kegiatan_id' => ['required', 'integer', Rule::exists('activities', 'id')->where('aktif', true)],
             'uraian' => ['nullable', 'string'],
             'durasi_jam' => ['required', 'integer', 'min:0', 'max:24'],
             'durasi_menit' => ['required', 'integer', 'min:0', 'max:59'],
@@ -33,7 +32,7 @@ class TaskDraftRequest extends FormRequest
             'lng' => ['nullable', 'numeric', 'between:-180,180'],
             'akurasi' => ['nullable', 'numeric', 'min:0'],
 
-            // Berkas bukti (opsional pada tahap draf).
+            // Berkas bukti (opsional).
             'foto_selfie' => ['nullable', 'array'],
             'foto_selfie.*' => ['file', 'image', 'mimes:jpeg,jpg,png', 'max:5120'], // 5 MB
             'dokumen' => ['nullable', 'array'],
@@ -57,7 +56,8 @@ class TaskDraftRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'judul.required' => 'Judul tugas wajib diisi.',
+            'kegiatan_id.required' => 'Kegiatan wajib dipilih.',
+            'kegiatan_id.exists' => 'Kegiatan yang dipilih tidak valid atau sudah nonaktif.',
             'tanggal.required' => 'Tanggal kegiatan wajib diisi.',
             'jenis.in' => 'Jenis tugas tidak valid.',
             'foto_selfie.*.image' => 'Foto selfie harus berupa gambar (JPEG/PNG).',

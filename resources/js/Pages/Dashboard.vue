@@ -11,6 +11,7 @@ defineOptions({ layout: AppLayout });
 const props = defineProps({
     roles: { type: Object, default: () => ({}) },
     periode: { type: Object, default: () => ({}) },
+    periodeLalu: { type: Object, default: null },
     katimker: { type: Object, default: null },
     kabid: { type: Object, default: null },
     admin: { type: Object, default: null },
@@ -39,28 +40,57 @@ const tampilan = computed(() => {
 });
 const aktif = ref(tampilan.value[0]?.value ?? null);
 
-// ─── Info periode ───
-const sisaCutOff = computed(() => hariKe(props.periode.cut_off));
-const sisaCair = computed(() => hariKe(props.periode.target_cair));
-const periodeTerkunci = computed(() => props.periode.status === 'terkunci');
+// ─── Jabatan (peran) ───
+const jabatan = computed(() => {
+    const j = [];
+    if (user.value?.is_katimker) j.push('Katimker');
+    if (user.value?.is_kabid) j.push('Kabid');
+    if (user.value?.is_admin) j.push('Administrator');
+    return j;
+});
 
-const infoCutOff = computed(() => {
-    const s = sisaCutOff.value;
-    if (s === null) return null;
-    if (periodeTerkunci.value) return { teks: 'Periode terkunci', severity: 'secondary', icon: 'pi pi-lock' };
-    if (s < 0) return { teks: 'Cut-off terlewat', severity: 'danger', icon: 'pi pi-exclamation-circle' };
-    if (s === 0) return { teks: 'Cut-off hari ini', severity: 'danger', icon: 'pi pi-clock' };
-    if (s <= 3) return { teks: `Cut-off ${s} hari lagi`, severity: 'warn', icon: 'pi pi-clock' };
-    return { teks: `Cut-off ${s} hari lagi`, severity: 'info', icon: 'pi pi-calendar' };
+// ─── Info periode ───
+// Cut-off sebuah periode jatuh di bulan berikutnya: pada tanggal cut-off, input &
+// persetujuan periode itu ditutup, sedangkan periode berjalan tetap terbuka.
+function statusPeriode(info, { lalu }) {
+    if (info.status === 'terkunci') return { teks: 'Dikunci administrator', severity: 'secondary', icon: 'pi pi-lock' };
+    if (info.terkunci) return { teks: 'Cut-off terlewat · input & penilaian ditutup', severity: 'danger', icon: 'pi pi-lock' };
+    if (!lalu) return { teks: 'Input & penilaian terbuka', severity: 'success', icon: 'pi pi-lock-open' };
+    const s = hariKe(info.cut_off);
+    if (s === 1) return { teks: 'Hari terakhir input & penilaian', severity: 'danger', icon: 'pi pi-clock' };
+    if (s !== null && s <= 3) return { teks: `Ditutup ${s} hari lagi`, severity: 'warn', icon: 'pi pi-clock' };
+    return { teks: 'Input & penilaian masih terbuka', severity: 'info', icon: 'pi pi-calendar' };
+}
+
+const blokPeriode = computed(() => {
+    const blok = [];
+    if (props.periodeLalu) {
+        blok.push({
+            kunci: 'lalu',
+            judul: 'Periode lalu (belum realisasi)',
+            label: `${namaBulan[props.periodeLalu.bulan] ?? ''} ${props.periodeLalu.tahun}`,
+            info: props.periodeLalu,
+            status: statusPeriode(props.periodeLalu, { lalu: true }),
+        });
+    }
+    blok.push({
+        kunci: 'sekarang',
+        judul: 'Periode sekarang',
+        label: labelPeriode.value,
+        info: props.periode,
+        status: statusPeriode(props.periode, { lalu: false }),
+    });
+    return blok;
 });
 
 // ─── Katimker ───
 const kt = computed(() => props.katimker);
-const totalTugasKt = computed(() => {
-    const s = kt.value?.status;
-    return s ? s.draf + s.menunggu_bukti + s.diajukan + s.disetujui + s.ditolak : 0;
-});
-const perluTindakanKt = computed(() => (kt.value?.status.ditolak ?? 0) + (kt.value?.status.menunggu_bukti ?? 0));
+const ringkasKt = computed(() => kt.value?.ringkas ?? {});
+const jumlahTugas = (r, ...keys) => keys.reduce((n, k) => n + (r?.[k]?.jumlah ?? 0), 0);
+const menitTugas = (r, ...keys) => keys.reduce((n, k) => n + (r?.[k]?.menit ?? 0), 0);
+const semuaStatus = ['menunggu_bukti', 'diajukan', 'revisi', 'disetujui', 'ditolak'];
+const totalTugasKt = computed(() => jumlahTugas(ringkasKt.value, ...semuaStatus));
+const perluTindakanKt = computed(() => jumlahTugas(ringkasKt.value, 'revisi', 'menunggu_bukti'));
 const pctUtama = computed(() => persen(kt.value?.jam.utama_menit, kt.value?.jam.target_utama_menit));
 const pctTambahan = computed(() => persen(kt.value?.jam.tambahan_menit, kt.value?.jam.target_tambahan_menit));
 const datasetJamKt = computed(() => kt.value ? [
@@ -72,21 +102,24 @@ const datasetJamKt = computed(() => kt.value ? [
 const kb = computed(() => props.kabid);
 const datasetStatusKb = computed(() => kb.value ? [
     { label: 'Disetujui', data: kb.value.tren.series.disetujui, color: 'green' },
+    { label: 'Revisi', data: kb.value.tren.series.revisi, color: 'orange' },
     { label: 'Ditolak', data: kb.value.tren.series.ditolak, color: 'red' },
 ] : []);
+const ringkasKb = computed(() => kb.value?.ringkas_bulan_ini ?? {});
 const maxRekapBinaan = computed(() => Math.max(1, ...(kb.value?.rekap_binaan ?? []).map((r) => r.total_menit)));
 
 // ─── Admin ───
 const ad = computed(() => props.admin);
 const totalPeriodeAd = computed(() => {
     const s = ad.value?.status_periode;
-    return s ? s.draf + s.menunggu_bukti + s.diajukan + s.disetujui + s.ditolak : 0;
+    return s ? s.menunggu_bukti + s.diajukan + s.revisi + s.disetujui + s.ditolak : 0;
 });
 const pctDisetujuiAd = computed(() => totalPeriodeAd.value ? Math.round((ad.value.status_periode.disetujui / totalPeriodeAd.value) * 100) : null);
 const datasetStatusAd = computed(() => ad.value ? [
     { label: 'Disetujui', data: ad.value.tren.series.disetujui, color: 'green' },
+    { label: 'Revisi', data: ad.value.tren.series.revisi, color: 'orange' },
     { label: 'Ditolak', data: ad.value.tren.series.ditolak, color: 'red' },
-    { label: 'Menunggu penilaian', data: ad.value.tren.series.diajukan, color: 'blue' },
+    { label: 'Proses penilaian', data: ad.value.tren.series.diajukan, color: 'blue' },
 ] : []);
 
 const labelAksi = {
@@ -104,15 +137,12 @@ function teksAksi(aksi) {
         <!-- ─── Header ─── -->
         <div class="col-span-12">
             <div class="card mb-0">
-                <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex flex-wrap items-start justify-between gap-4">
                     <div class="min-w-0">
                         <h4 class="m-0 font-semibold text-2xl">{{ sapaan }}, {{ user?.nama ?? 'Pengguna' }}</h4>
-                        <div class="flex flex-wrap items-center gap-2 mt-2 text-muted-color">
-                            <span><i class="pi pi-calendar mr-1"></i>Periode {{ labelPeriode }}</span>
-                            <Tag v-if="infoCutOff" :value="infoCutOff.teks" :severity="infoCutOff.severity" :icon="infoCutOff.icon" />
-                            <span v-if="periode.target_cair && !periodeTerkunci && sisaCair !== null && sisaCair >= 0" class="text-sm">
-                                · Target cair {{ formatTanggal(periode.target_cair) }}
-                            </span>
+                        <div v-if="jabatan.length" class="flex flex-wrap items-center gap-2 mt-2">
+                            <i class="pi pi-id-card text-muted-color"></i>
+                            <Tag v-for="j in jabatan" :key="j" :value="j" severity="secondary" />
                         </div>
                     </div>
                     <SelectButton
@@ -125,6 +155,23 @@ function teksAksi(aksi) {
                         aria-label="Pilih tampilan dashboard"
                     />
                 </div>
+
+                <div class="grid grid-cols-12 gap-4 mt-5">
+                    <div v-for="b in blokPeriode" :key="b.kunci" class="col-span-12 md:col-span-6">
+                        <div class="rounded-border border border-surface-200 dark:border-surface-700 p-4 h-full">
+                            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                <span class="font-semibold text-surface-900 dark:text-surface-0">
+                                    <i class="pi pi-calendar mr-1"></i>{{ b.judul }} · {{ b.label }}
+                                </span>
+                                <Tag :value="b.status.teks" :severity="b.status.severity" :icon="b.status.icon" />
+                            </div>
+                            <ul class="list-none p-0 m-0 flex flex-col gap-1 text-sm text-muted-color">
+                                <li>Cut-off: <span class="text-surface-900 dark:text-surface-0 font-medium">{{ formatTanggal(b.info.cut_off) }}</span></li>
+                                <li>Target realisasi: <span class="text-surface-900 dark:text-surface-0 font-medium">{{ formatTanggal(b.info.target_realisasi) }}</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -132,7 +179,10 @@ function teksAksi(aksi) {
         <template v-if="kt && aktif === 'katimker'">
             <div class="col-span-12">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h5 class="m-0 font-semibold text-lg">Kinerja Saya</h5>
+                    <div>
+                        <h5 class="m-0 font-semibold text-lg">Kinerja Saya</h5>
+                        <span class="text-sm text-muted-color">Ringkasan periode {{ labelPeriode }}</span>
+                    </div>
                     <div class="flex flex-wrap gap-2">
                         <Link :href="route('katimker.tugas.create')"><Button label="Tugas Baru" icon="pi pi-plus" size="small" /></Link>
                         <Link :href="route('katimker.tugas.index')"><Button label="Semua Tugas" icon="pi pi-list" size="small" severity="secondary" outlined /></Link>
@@ -142,16 +192,16 @@ function teksAksi(aksi) {
             </div>
 
             <div class="col-span-12 md:col-span-6 xl:col-span-3">
-                <KpiCard label="Jam Disetujui" :value="formatDurasi(kt.jam.total_menit)" icon="pi pi-clock" color="green"
-                    :hint="`${totalTugasKt} tugas periode ini`" :href="route('katimker.rekap.index')" />
+                <KpiCard label="Disetujui" :value="`${jumlahTugas(ringkasKt, 'disetujui')} tugas`" icon="pi pi-check-circle" color="green"
+                    :hint="`${formatDurasi(menitTugas(ringkasKt, 'disetujui'))} · dari ${totalTugasKt} tugas periode ini`" :href="route('katimker.rekap.index')" />
             </div>
             <div class="col-span-12 md:col-span-6 xl:col-span-3">
-                <KpiCard label="Menunggu Penilaian" :value="kt.status.diajukan" icon="pi pi-send" color="blue"
-                    hint="Sudah diajukan ke Kabid" :href="route('katimker.tugas.index')" />
+                <KpiCard label="Proses Penilaian" :value="`${jumlahTugas(ringkasKt, 'diajukan')} tugas`" icon="pi pi-send" color="blue"
+                    :hint="`${formatDurasi(menitTugas(ringkasKt, 'diajukan'))} · sedang dinilai Kabid`" :href="route('katimker.tugas.index')" />
             </div>
             <div class="col-span-12 md:col-span-6 xl:col-span-3">
-                <KpiCard label="Perlu Tindakan" :value="perluTindakanKt" icon="pi pi-exclamation-triangle" :color="perluTindakanKt ? 'orange' : 'surface'"
-                    :hint="perluTindakanKt ? `${kt.status.ditolak} ditolak · ${kt.status.menunggu_bukti} menunggu bukti` : 'Tidak ada yang tertunda'"
+                <KpiCard label="Perlu Tindakan" :value="`${perluTindakanKt} tugas`" icon="pi pi-exclamation-triangle" :color="perluTindakanKt ? 'orange' : 'surface'"
+                    :hint="perluTindakanKt ? `${jumlahTugas(ringkasKt, 'revisi')} revisi · ${jumlahTugas(ringkasKt, 'menunggu_bukti')} menunggu bukti · ${formatDurasi(menitTugas(ringkasKt, 'revisi', 'menunggu_bukti'))}` : 'Tidak ada yang tertunda'"
                     :alert="perluTindakanKt > 0" :href="route('katimker.tugas.index')" />
             </div>
             <div class="col-span-12 md:col-span-6 xl:col-span-3">
@@ -181,13 +231,13 @@ function teksAksi(aksi) {
 
             <!-- Perlu tindakan -->
             <div class="col-span-12 xl:col-span-7">
-                <WidgetCard title="Perlu Ditindaklanjuti" subtitle="Ditolak, menunggu bukti, atau masih draf" actionLabel="Lihat semua" :actionHref="route('katimker.tugas.index')">
+                <WidgetCard title="Perlu Ditindaklanjuti" subtitle="Diminta revisi atau menunggu bukti" actionLabel="Lihat semua" :actionHref="route('katimker.tugas.index')">
                     <ul v-if="kt.perlu_tindakan.length" class="list-none p-0 m-0 flex flex-col divide-y divide-surface-200 dark:divide-surface-700">
                         <li v-for="t in kt.perlu_tindakan" :key="t.id" class="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
                             <div class="min-w-0">
                                 <div class="font-medium text-surface-900 dark:text-surface-0 truncate">{{ t.judul }}</div>
                                 <div class="text-sm text-muted-color">{{ formatTanggal(t.tanggal) }} · {{ jenisLabel[t.jenis] }}</div>
-                                <div v-if="t.status === 'ditolak' && t.catatan_penilai" class="text-sm text-red-500 mt-1">
+                                <div v-if="t.status === 'revisi' && t.catatan_penilai" class="text-sm text-orange-500 mt-1">
                                     <i class="pi pi-info-circle"></i> {{ t.catatan_penilai }}
                                 </div>
                             </div>
@@ -221,15 +271,14 @@ function teksAksi(aksi) {
                                     'bg-green-100 dark:bg-green-400/10': t.status === 'disetujui',
                                     'bg-red-100 dark:bg-red-400/10': t.status === 'ditolak',
                                     'bg-blue-100 dark:bg-blue-400/10': t.status === 'diajukan',
-                                    'bg-orange-100 dark:bg-orange-400/10': t.status === 'menunggu_bukti',
-                                    'bg-surface-100 dark:bg-surface-700': t.status === 'draf',
+                                    'bg-orange-100 dark:bg-orange-400/10': t.status === 'menunggu_bukti' || t.status === 'revisi',
                                 }">
                                 <i class="pi" :class="{
                                     'pi-check text-green-600 dark:text-green-400': t.status === 'disetujui',
                                     'pi-times text-red-600 dark:text-red-400': t.status === 'ditolak',
                                     'pi-send text-blue-600 dark:text-blue-400': t.status === 'diajukan',
                                     'pi-camera text-orange-600 dark:text-orange-400': t.status === 'menunggu_bukti',
-                                    'pi-file-edit text-surface-500': t.status === 'draf',
+                                    'pi-replay text-orange-600 dark:text-orange-400': t.status === 'revisi',
                                 }"></i>
                             </div>
                             <div class="min-w-0 flex-1">
@@ -259,15 +308,17 @@ function teksAksi(aksi) {
             </div>
 
             <div class="col-span-12 md:col-span-6 xl:col-span-3">
-                <KpiCard label="Menunggu Penilaian" :value="kb.menunggu" icon="pi pi-check-square" :color="kb.menunggu ? 'blue' : 'surface'"
+                <KpiCard label="Proses Penilaian" :value="`${kb.menunggu} tugas`" icon="pi pi-check-square" :color="kb.menunggu ? 'blue' : 'surface'"
                     :hint="kb.menumpuk ? `${kb.menumpuk} lebih dari ${kb.hari_menumpuk} hari` : 'Tidak ada yang menumpuk'"
                     :alert="kb.menumpuk > 0" :href="route('kabid.penilaian.index')" />
             </div>
             <div class="col-span-12 md:col-span-6 xl:col-span-3">
-                <KpiCard label="Disetujui Bulan Ini" :value="kb.status_bulan_ini.disetujui" icon="pi pi-check-circle" color="green" hint="Tugas yang Anda setujui" />
+                <KpiCard label="Disetujui Bulan Ini" :value="`${jumlahTugas(ringkasKb, 'disetujui')} tugas`" icon="pi pi-check-circle" color="green"
+                    :hint="`${formatDurasi(menitTugas(ringkasKb, 'disetujui'))} disetujui`" />
             </div>
             <div class="col-span-12 md:col-span-6 xl:col-span-3">
-                <KpiCard label="Ditolak Bulan Ini" :value="kb.status_bulan_ini.ditolak" icon="pi pi-times-circle" color="red" hint="Dikembalikan ke Katimker" />
+                <KpiCard label="Revisi / Ditolak" :value="`${jumlahTugas(ringkasKb, 'revisi', 'ditolak')} tugas`" icon="pi pi-times-circle" color="red"
+                    :hint="`${jumlahTugas(ringkasKb, 'revisi')} revisi · ${jumlahTugas(ringkasKb, 'ditolak')} ditolak bulan ini`" />
             </div>
             <div class="col-span-12 md:col-span-6 xl:col-span-3">
                 <KpiCard label="Katimker Binaan" :value="kb.jumlah_binaan" icon="pi pi-users" color="purple"
@@ -276,7 +327,7 @@ function teksAksi(aksi) {
 
             <!-- Antrean -->
             <div class="col-span-12 xl:col-span-7">
-                <WidgetCard title="Antrean Penilaian" subtitle="Diurutkan dari yang paling lama menunggu" actionLabel="Semua antrean" :actionHref="route('kabid.penilaian.index')">
+                <WidgetCard title="Antrean Proses Penilaian" subtitle="Diurutkan dari yang paling lama menunggu" actionLabel="Semua antrean" :actionHref="route('kabid.penilaian.index')">
                     <ul v-if="kb.antrean.length" class="list-none p-0 m-0 flex flex-col divide-y divide-surface-200 dark:divide-surface-700">
                         <li v-for="t in kb.antrean" :key="t.id" class="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                             <div class="min-w-0">
@@ -291,7 +342,7 @@ function teksAksi(aksi) {
                     </ul>
                     <div v-else class="flex flex-col items-center justify-center text-center py-8 text-muted-color">
                         <i class="pi pi-check-circle text-3xl text-green-500 mb-3"></i>
-                        <span>Tidak ada tugas yang menunggu penilaian.</span>
+                        <span>Tidak ada tugas dalam proses penilaian.</span>
                     </div>
                 </WidgetCard>
             </div>
@@ -308,7 +359,7 @@ function teksAksi(aksi) {
             </div>
 
             <div class="col-span-12">
-                <WidgetCard title="Tren Penilaian" subtitle="Jumlah tugas binaan Anda yang disetujui dan ditolak, 6 bulan terakhir">
+                <WidgetCard title="Tren Penilaian" subtitle="Jumlah tugas binaan Anda yang disetujui, direvisi, dan ditolak, 6 bulan terakhir">
                     <TrendChart :labels="kb.tren.labels" :datasets="datasetStatusKb" unit="tugas" height="260px" />
                 </WidgetCard>
             </div>
@@ -335,7 +386,7 @@ function teksAksi(aksi) {
             </div>
 
             <div class="col-span-12 md:col-span-6 xl:col-span-3">
-                <KpiCard label="Menunggu Penilaian" :value="ad.total_diajukan" icon="pi pi-send" color="blue"
+                <KpiCard label="Proses Penilaian" :value="ad.total_diajukan" icon="pi pi-send" color="blue"
                     :hint="ad.menumpuk ? `${ad.menumpuk} lebih dari ${ad.hari_menumpuk} hari` : 'Tidak ada yang menumpuk'" :alert="ad.menumpuk > 0" />
             </div>
             <div class="col-span-12 md:col-span-6 xl:col-span-3">
@@ -343,7 +394,8 @@ function teksAksi(aksi) {
                     :hint="pctDisetujuiAd !== null ? `${pctDisetujuiAd}% dari ${totalPeriodeAd} tugas` : 'Belum ada tugas'" />
             </div>
             <div class="col-span-12 md:col-span-6 xl:col-span-3">
-                <KpiCard label="Ditolak Periode Ini" :value="ad.status_periode.ditolak" icon="pi pi-times-circle" color="red" hint="Perlu perbaikan Katimker" />
+                <KpiCard label="Revisi / Ditolak Periode Ini" :value="ad.status_periode.revisi + ad.status_periode.ditolak" icon="pi pi-times-circle" color="red"
+                    :hint="`${ad.status_periode.revisi} revisi · ${ad.status_periode.ditolak} ditolak`" />
             </div>
             <div class="col-span-12 md:col-span-6 xl:col-span-3">
                 <KpiCard label="Insentif Difinalkan" :value="`${ad.insentif_final} / ${ad.jumlah_katimker}`" icon="pi pi-wallet" color="purple"

@@ -14,6 +14,8 @@ use App\Services\RecapService;
 use App\Services\Sikep\RoleResolver;
 use App\Services\TargetResolver;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -33,13 +35,14 @@ class DashboardController extends Controller
         $user = $request->user();
         $roles = $roleResolver->resolve($user->sikep_user_id);
 
-        $now = now();
+        $now = Period::today();
         $tahun = (int) $now->year;
         $bulan = (int) $now->month;
 
         $data = [
             'roles' => $roles,
-            'periode' => $this->infoPeriode($tahun, $bulan),
+            'periode' => Period::info($tahun, $bulan),
+            'periodeLalu' => $this->periodeLaluBelumRealisasi($user, $now),
         ];
 
         if ($roles['is_katimker']) {
@@ -60,19 +63,24 @@ class DashboardController extends Controller
     // ─── Periode ─────────────────────────────────────────────────────────
 
     /**
-     * @return array{tahun:int,bulan:int,status:?string,cut_off:?string,target_cair:?string}
+     * Info periode bulan lalu selama insentifnya belum direalisasi (belum ada hasil insentif
+     * final); null bila sudah direalisasi. Katimker dicek atas hasil miliknya, peran lain
+     * atas ada/tidaknya hasil final pada periode itu.
+     *
+     * @return array<string,mixed>|null
      */
-    private function infoPeriode(int $tahun, int $bulan): array
+    private function periodeLaluBelumRealisasi(User $user, CarbonInterface $hariIni): ?array
     {
-        $period = Period::query()->where('tahun', $tahun)->where('bulan', $bulan)->first();
+        $lalu = $hariIni->copy()->startOfMonth()->subMonthNoOverflow();
+        $tahun = (int) $lalu->year;
+        $bulan = (int) $lalu->month;
 
-        return [
-            'tahun' => $tahun,
-            'bulan' => $bulan,
-            'status' => $period?->status,
-            'cut_off' => $period?->cut_off?->toDateString(),
-            'target_cair' => $period?->target_cair?->toDateString(),
-        ];
+        $hasil = IncentiveResult::query()->where('tahun', $tahun)->where('bulan', $bulan);
+        if ($user->sikep_user_id && app(RoleResolver::class)->resolve($user->sikep_user_id)['is_katimker']) {
+            $hasil->where('katimker_sikep_user_id', $user->sikep_user_id);
+        }
+
+        return $hasil->exists() ? null : Period::info($tahun, $bulan);
     }
 
     // ─── Katimker ────────────────────────────────────────────────────────
@@ -101,11 +109,10 @@ class DashboardController extends Controller
 
         $perluTindakan = $milik()
             ->whereIn('status', [
-                TaskReport::STATUS_DITOLAK,
+                TaskReport::STATUS_REVISI,
                 TaskReport::STATUS_MENUNGGU_BUKTI,
-                TaskReport::STATUS_DRAF,
             ])
-            ->orderByRaw("CASE status WHEN 'ditolak' THEN 0 WHEN 'menunggu_bukti' THEN 1 ELSE 2 END")
+            ->orderByRaw("CASE status WHEN 'revisi' THEN 0 ELSE 1 END")
             ->orderByDesc('tanggal')
             ->limit(5)
             ->get(['id', 'judul', 'tanggal', 'status', 'jenis', 'catatan_penilai'])
@@ -121,6 +128,7 @@ class DashboardController extends Controller
 
         return [
             'status' => $this->statusCount($milik()->periode($tahun, $bulan)),
+            'ringkas' => $this->statusRingkas($milik()->periode($tahun, $bulan)),
             'jam' => [
                 'utama_menit' => $rekap['utama_menit'],
                 'tambahan_menit' => $rekap['tambahan_menit'],
@@ -183,6 +191,7 @@ class DashboardController extends Controller
             'jumlah_binaan' => $binaanIds->count(),
             'binaan_aktif_bulan_ini' => $rekapBinaan->where('total_menit', '>', 0)->count(),
             'status_bulan_ini' => $statusBulanIni,
+            'ringkas_bulan_ini' => $this->statusRingkas($untukSaya()->periode($tahun, $bulan)),
             'antrean' => $antrean->map(fn (TaskReport $t) => [
                 'id' => $t->id,
                 'judul' => $t->judul,
@@ -248,7 +257,7 @@ class DashboardController extends Controller
     /**
      * Hitung jumlah tugas per status untuk sebuah query.
      *
-     * @return array{draf:int,menunggu_bukti:int,diajukan:int,disetujui:int,ditolak:int}
+     * @return array{menunggu_bukti:int,diajukan:int,revisi:int,disetujui:int,ditolak:int}
      */
     private function statusCount($query): array
     {
@@ -258,12 +267,42 @@ class DashboardController extends Controller
             ->pluck('c', 'status');
 
         return [
-            'draf' => (int) ($rows[TaskReport::STATUS_DRAF] ?? 0),
             'menunggu_bukti' => (int) ($rows[TaskReport::STATUS_MENUNGGU_BUKTI] ?? 0),
             'diajukan' => (int) ($rows[TaskReport::STATUS_DIAJUKAN] ?? 0),
+            'revisi' => (int) ($rows[TaskReport::STATUS_REVISI] ?? 0),
             'disetujui' => (int) ($rows[TaskReport::STATUS_DISETUJUI] ?? 0),
             'ditolak' => (int) ($rows[TaskReport::STATUS_DITOLAK] ?? 0),
         ];
+    }
+
+    /**
+     * Jumlah tugas dan total menit per status (menit disetujui untuk status disetujui,
+     * menit diajukan untuk status lain).
+     *
+     * @return array<string,array{jumlah:int,menit:int}>
+     */
+    private function statusRingkas($query): array
+    {
+        $hasil = [];
+        foreach ([
+            TaskReport::STATUS_MENUNGGU_BUKTI, TaskReport::STATUS_DIAJUKAN, TaskReport::STATUS_REVISI,
+            TaskReport::STATUS_DISETUJUI, TaskReport::STATUS_DITOLAK,
+        ] as $st) {
+            $hasil[$st] = ['jumlah' => 0, 'menit' => 0];
+        }
+
+        (clone $query)
+            ->selectRaw('status, COUNT(*) as c, COALESCE(SUM(durasi_diajukan_menit),0) as diajukan, COALESCE(SUM(durasi_disetujui_menit),0) as disetujui')
+            ->groupBy('status')
+            ->get()
+            ->each(function ($r) use (&$hasil) {
+                $hasil[$r->status] = [
+                    'jumlah' => (int) $r->c,
+                    'menit' => (int) ($r->status === TaskReport::STATUS_DISETUJUI ? $r->disetujui : $r->diajukan),
+                ];
+            });
+
+        return $hasil;
     }
 
     /**
@@ -273,7 +312,7 @@ class DashboardController extends Controller
      * Mode "jam"   : menit disetujui per jenis (utama/tambahan) → dalam jam.
      * Mode "status": jumlah tugas disetujui / ditolak / diajukan.
      *
-     * @param  callable(\Illuminate\Database\Eloquent\Builder):\Illuminate\Database\Eloquent\Builder  $scope
+     * @param  callable(Builder):Builder  $scope
      * @return array{labels:array<int,string>,series:array<string,array<int,int|float>>}
      */
     private function tren(callable $scope, string $mode): array
@@ -295,7 +334,7 @@ class DashboardController extends Controller
         $kosong = array_fill(0, self::BULAN_TREN, 0);
         $series = $mode === 'jam'
             ? ['utama' => $kosong, 'tambahan' => $kosong]
-            : ['disetujui' => $kosong, 'ditolak' => $kosong, 'diajukan' => $kosong];
+            : ['disetujui' => $kosong, 'revisi' => $kosong, 'ditolak' => $kosong, 'diajukan' => $kosong];
 
         foreach ($rows as $r) {
             $idx = $bulanKey[Carbon::parse($r->tanggal)->format('Y-m')] ?? null;

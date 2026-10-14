@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,12 +25,15 @@ class TaskReport extends Model
     // Status
     public const STATUS_MENUNGGU_BUKTI = 'menunggu_bukti';
 
-    public const STATUS_DRAF = 'draf';
-
+    /** Tersimpan & muncul di penilai ("proses penilaian"). */
     public const STATUS_DIAJUKAN = 'diajukan';
 
     public const STATUS_DISETUJUI = 'disetujui';
 
+    /** Dikembalikan penilai; Katimker dapat memperbaiki dan menyimpan ulang. */
+    public const STATUS_REVISI = 'revisi';
+
+    /** Final: tidak dapat diajukan kembali. */
     public const STATUS_DITOLAK = 'ditolak';
 
     // Jenis
@@ -45,6 +49,7 @@ class TaskReport extends Model
         'jenis_terkunci',
         'tanggal',
         'jenis',
+        'kegiatan_id',
         'judul',
         'uraian',
         'durasi_diajukan_menit',
@@ -86,11 +91,6 @@ class TaskReport extends Model
 
     // ── Helper status ────────────────────────────────────────────────
 
-    public function isDraf(): bool
-    {
-        return $this->status === self::STATUS_DRAF;
-    }
-
     public function isDiajukan(): bool
     {
         return $this->status === self::STATUS_DIAJUKAN;
@@ -106,10 +106,24 @@ class TaskReport extends Model
         return $this->status === self::STATUS_DITOLAK;
     }
 
-    /** Dapat diedit oleh Katimker: draf, ditolak, atau menunggu bukti (penugasan Kabid). */
+    public function isRevisi(): bool
+    {
+        return $this->status === self::STATUS_REVISI;
+    }
+
+    /**
+     * Dapat diedit oleh Katimker selama belum disetujui/ditolak:
+     * proses penilaian (diajukan), revisi, atau menunggu bukti (penugasan Kabid).
+     */
     public function isEditable(): bool
     {
-        return in_array($this->status, [self::STATUS_DRAF, self::STATUS_DITOLAK, self::STATUS_MENUNGGU_BUKTI], true);
+        return in_array($this->status, [self::STATUS_DIAJUKAN, self::STATUS_REVISI, self::STATUS_MENUNGGU_BUKTI], true);
+    }
+
+    /** Periode tanggal tugas sudah melewati cut-off / dikunci admin. */
+    public function periodeTerkunci(): bool
+    {
+        return Period::lockedFor((int) $this->tanggal->year, (int) $this->tanggal->month);
     }
 
     public function isMenungguBukti(): bool
@@ -122,6 +136,34 @@ class TaskReport extends Model
         return $this->attachments()
             ->where('tipe', TaskAttachment::TIPE_FOTO_SELFIE)
             ->exists();
+    }
+
+    public function kegiatan(): BelongsTo
+    {
+        return $this->belongsTo(Activity::class, 'kegiatan_id');
+    }
+
+    /**
+     * Peringatan bukti/validasi untuk penilai (bukan pemblokir).
+     *
+     * @return array<int,string>
+     */
+    public function peringatanBukti(): array
+    {
+        $lampiran = $this->relationLoaded('attachments') ? $this->attachments : $this->attachments()->get();
+        $p = [];
+
+        if (! $lampiran->contains('tipe', TaskAttachment::TIPE_FOTO_SELFIE)) {
+            $p[] = 'Belum ada foto selfie sebagai bukti.';
+        }
+        if ($lampiran->isEmpty()) {
+            $p[] = 'Tidak ada lampiran bukti sama sekali.';
+        }
+        if ($this->durasi_diajukan_menit <= 0) {
+            $p[] = 'Durasi diajukan masih 0 (belum diisi Katimker).';
+        }
+
+        return $p;
     }
 
     // ── Scopes ───────────────────────────────────────────────────────
@@ -138,6 +180,9 @@ class TaskReport extends Model
 
     public function scopePeriode(Builder $q, int $tahun, int $bulan): Builder
     {
-        return $q->whereYear('tanggal', $tahun)->whereMonth('tanggal', $bulan);
+        // Rentang tanggal (bukan whereYear/whereMonth) agar indeks `tanggal` dapat dipakai.
+        $awal = Carbon::create($tahun, $bulan, 1);
+
+        return $q->whereBetween('tanggal', [$awal->toDateString(), $awal->copy()->endOfMonth()->toDateString()]);
     }
 }

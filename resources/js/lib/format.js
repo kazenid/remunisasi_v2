@@ -53,10 +53,13 @@ export function persen(nilai, target) {
 
 export const statusMeta = {
     menunggu_bukti: { label: 'Menunggu Bukti', severity: 'warn' },
-    draf: { label: 'Draf', severity: 'secondary' },
-    diajukan: { label: 'Diajukan', severity: 'info' },
+    diajukan: { label: 'Proses Penilaian', severity: 'info' },
+    revisi: { label: 'Revisi', severity: 'warn' },
     disetujui: { label: 'Disetujui', severity: 'success' },
     ditolak: { label: 'Ditolak', severity: 'danger' },
 };
+
+/** Status yang masih dapat diubah Katimker (selama periode belum melewati cut-off). */
+export const statusDapatDiedit = ['diajukan', 'revisi', 'menunggu_bukti'];
 
 export const jenisLabel = { utama: 'Utama', tambahan: 'Tambahan' };

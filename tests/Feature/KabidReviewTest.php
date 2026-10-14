@@ -83,7 +83,7 @@ class KabidReviewTest extends TestCase
         $task = $this->tugasDiajukan();
 
         $this->post(route('kabid.penilaian.approve', $task->id), [
-            'durasi_jam' => 1, 'durasi_menit' => 0, 'alasan' => 'Sebagian di luar jam efektif',
+            'durasi_jam' => 1, 'durasi_menit' => 0, 'keterangan' => 'Sebagian di luar jam efektif',
         ])->assertRedirect();
 
         $task->refresh();
@@ -98,8 +98,8 @@ class KabidReviewTest extends TestCase
         $task = $this->tugasDiajukan();
 
         $this->from(route('kabid.penilaian.show', $task->id))
-            ->post(route('kabid.penilaian.reject', $task->id), ['catatan' => ''])
-            ->assertSessionHasErrors('catatan');
+            ->post(route('kabid.penilaian.reject', $task->id), ['keterangan' => ''])
+            ->assertSessionHasErrors('keterangan');
 
         $this->assertSame('diajukan', $task->refresh()->status);
     }
@@ -109,13 +109,76 @@ class KabidReviewTest extends TestCase
         $this->actingAsKabid();
         $task = $this->tugasDiajukan();
 
-        $this->post(route('kabid.penilaian.reject', $task->id), ['catatan' => 'Bukti kurang jelas'])
+        $this->post(route('kabid.penilaian.reject', $task->id), ['keterangan' => 'Bukti kurang jelas'])
             ->assertRedirect(route('kabid.penilaian.index'));
 
         $task->refresh();
         $this->assertSame('ditolak', $task->status);
         $this->assertSame('Bukti kurang jelas', $task->catatan_penilai);
         $this->assertDatabaseHas('audit_logs', ['aksi' => 'task.reject', 'subject_id' => $task->id]);
+    }
+
+    public function test_revisi_mengembalikan_tugas_dan_dapat_diajukan_kembali(): void
+    {
+        $this->actingAsKabid();
+        $task = $this->tugasDiajukan();
+
+        $this->post(route('kabid.penilaian.revisi', $task->id), ['keterangan' => 'Lengkapi bukti'])
+            ->assertRedirect(route('kabid.penilaian.index'));
+
+        $task->refresh();
+        $this->assertSame('revisi', $task->status);
+        $this->assertSame('Lengkapi bukti', $task->catatan_penilai);
+        $this->assertTrue($task->isEditable());
+        $this->assertDatabaseHas('audit_logs', ['aksi' => 'task.revisi', 'subject_id' => $task->id]);
+    }
+
+    public function test_revisi_tanpa_keterangan_ditolak_validasi(): void
+    {
+        $this->actingAsKabid();
+        $task = $this->tugasDiajukan();
+
+        $this->from(route('kabid.penilaian.show', $task->id))
+            ->post(route('kabid.penilaian.revisi', $task->id), ['keterangan' => ''])
+            ->assertSessionHasErrors('keterangan');
+
+        $this->assertSame('diajukan', $task->refresh()->status);
+    }
+
+    public function test_tolak_bersifat_final_tidak_dapat_diedit(): void
+    {
+        $this->actingAsKabid();
+        $task = $this->tugasDiajukan();
+
+        $this->post(route('kabid.penilaian.reject', $task->id), ['keterangan' => 'Tidak sesuai'])->assertRedirect();
+
+        $this->assertSame('ditolak', $task->refresh()->status);
+        $this->assertFalse($task->isEditable());
+    }
+
+    public function test_penilaian_periode_terkunci_ditolak(): void
+    {
+        $this->actingAsKabid();
+        // Sep: cut-off 10 Okt sudah lewat pada 13 Okt.
+        $task = $this->tugasDiajukan(['tanggal' => '2026-09-20']);
+
+        $this->post(route('kabid.penilaian.approve', $task->id), ['durasi_jam' => 2, 'durasi_menit' => 0])
+            ->assertForbidden();
+        $this->post(route('kabid.penilaian.revisi', $task->id), ['keterangan' => 'x'])->assertForbidden();
+        $this->post(route('kabid.penilaian.reject', $task->id), ['keterangan' => 'x'])->assertForbidden();
+
+        $this->assertSame('diajukan', $task->refresh()->status);
+    }
+
+    public function test_detail_menyertakan_peringatan_bukti(): void
+    {
+        $this->actingAsKabid();
+        $task = $this->tugasDiajukan(); // tanpa lampiran
+
+        $this->get(route('kabid.penilaian.show', $task->id))
+            ->assertInertia(fn ($page) => $page
+                ->where('tugas.dapat_dinilai', true)
+                ->has('tugas.peringatan', 2));
     }
 
     public function test_kabid_lain_tidak_dapat_menilai(): void
@@ -134,7 +197,7 @@ class KabidReviewTest extends TestCase
         $task = $this->tugasDiajukan(['status' => 'disetujui', 'durasi_disetujui_menit' => 120]);
 
         // Policy review menolak karena status bukan diajukan.
-        $this->post(route('kabid.penilaian.reject', $task->id), ['catatan' => 'coba'])
+        $this->post(route('kabid.penilaian.reject', $task->id), ['keterangan' => 'coba'])
             ->assertForbidden();
     }
 
