@@ -22,7 +22,10 @@ class TaskService
     /** Disk privat untuk menyimpan bukti. */
     private const DISK = 'local';
 
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly NotificationService $notifier,
+    ) {}
 
     /**
      * Konversi jam+menit → total menit.
@@ -52,7 +55,7 @@ class TaskService
             throw new TaskSubmissionException('Anda belum dipetakan ke Kabid penilai. Hubungi administrator.');
         }
 
-        return DB::transaction(function () use ($katimkerSikepUserId, $data, $files, $tanggal, $kegiatan, $kabidId) {
+        $task = DB::transaction(function () use ($katimkerSikepUserId, $data, $files, $tanggal, $kegiatan, $kabidId) {
             $period = Period::forDate($tanggal);
 
             $task = TaskReport::create([
@@ -81,6 +84,17 @@ class TaskService
 
             return $task;
         });
+
+        // Pasca-commit: beri tahu Kabid penilai ada tugas baru.
+        $this->notifier->notify(
+            $task->kabid_sikep_user_id,
+            'task.submitted',
+            'Ada tugas baru untuk dinilai.',
+            route('kabid.penilaian.show', $task, false),
+            ['task_id' => $task->id],
+        );
+
+        return $task;
     }
 
     /**
@@ -105,7 +119,7 @@ class TaskService
 
         $statusLama = $task->status;
 
-        return DB::transaction(function () use ($task, $data, $files, $tanggal, $kegiatan, $kabidId, $statusLama) {
+        $task = DB::transaction(function () use ($task, $data, $files, $tanggal, $kegiatan, $kabidId, $statusLama) {
             $period = Period::forDate($tanggal);
 
             $attrs = [
@@ -144,6 +158,20 @@ class TaskService
 
             return $task->refresh();
         });
+
+        // Pasca-commit: hanya saat tugas kembali ke penilaian (bukan edit tugas
+        // yang sudah "diajukan") kirim notifikasi ke Kabid.
+        if ($statusLama !== TaskReport::STATUS_DIAJUKAN) {
+            $this->notifier->notify(
+                $task->kabid_sikep_user_id,
+                'task.submitted',
+                'Tugas diperbarui dan diajukan kembali untuk dinilai.',
+                route('kabid.penilaian.show', $task, false),
+                ['task_id' => $task->id],
+            );
+        }
+
+        return $task;
     }
 
     /** @throws TaskSubmissionException */

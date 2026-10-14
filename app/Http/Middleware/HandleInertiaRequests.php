@@ -53,6 +53,23 @@ class HandleInertiaRequests extends Middleware
                     ];
                 })($request->user()) : null,
             ],
+            // Seed ringan lonceng: 15 notifikasi terbaru + status titik merah.
+            // Mismatch 15 (seed) vs 20 (REST/polling) DISENGAJA (desain §8).
+            'notifications' => fn () => $request->user() ? (function ($u) {
+                $items = $u->notifications()->latest()->limit(15)->get()->map(fn ($n) => [
+                    'id' => $n->id,
+                    'type' => $n->data['type'] ?? $n->type,
+                    'message' => $n->data['message'] ?? '',
+                    'url' => $n->data['url'] ?? '#',
+                    'read_at' => $n->read_at?->toIso8601String(),
+                    'created_at' => $n->created_at->toIso8601String(),
+                ]);
+
+                return [
+                    'items' => $items,
+                    'has_unread' => $u->unreadNotifications()->exists(),
+                ];
+            })($request->user()) : null,
             'ziggy' => fn () => [
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url(),

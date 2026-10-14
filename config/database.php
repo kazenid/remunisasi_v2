@@ -204,6 +204,22 @@ return [
             'backoff_cap' => env('REDIS_BACKOFF_CAP', 1000),
         ],
 
+        // Koneksi TERDEDIKASI untuk pub/sub notifikasi realtime (SSE), lepas dari
+        // cache/session agar blocking subscribe tidak mengganggu koneksi lain (desain §10.3).
+        'notifications' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'username' => env('REDIS_USERNAME'),
+            'password' => env('REDIS_PASSWORD'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_NOTIFY_DB', '2'),
+            // Sumber nilai $hb heartbeat loop SSE (§6.2); read-timeout raw client tetap 1 dtk.
+            'read_timeout' => env('SSE_HEARTBEAT_SECONDS', 20),
+            // Kosongkan prefix agar nama channel pub/sub literal `notif.user.{id}`
+            // (menimpa prefix global `{app-slug}-database-`). Finding 2.
+            'options' => ['prefix' => ''],
+        ],
+
     ],
 
 ];

@@ -16,6 +16,8 @@ use App\Http\Controllers\IndividualTargetController;
 use App\Http\Controllers\Kabid\BinaanController;
 use App\Http\Controllers\Kabid\ReviewController;
 use App\Http\Controllers\Katimker\TaskController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\NotificationStreamController;
 use App\Http\Controllers\RecapController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -48,6 +50,12 @@ Route::middleware(['auth', 'active-role', 'two-factor'])->group(function () {
 
     // Logout
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
+
+    // ─── Notifikasi realtime (SSE + Redis pub/sub) ──────────────────────────
+    Route::get('/sse/notifications', [NotificationStreamController::class, 'stream'])->name('notifications.stream');
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
 
     // ─── 2FA Setup / Enrollment (admin sudah login tapi dipaksa enroll) ─────
     Route::get('/two-factor/setup', [TwoFactorController::class, 'setup'])

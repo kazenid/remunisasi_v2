@@ -1,5 +1,6 @@
 <script setup>
 import { useLayout } from '@/layout/composables/layout';
+import { useNotifications } from '@/composables/useNotifications';
 import AppConfigurator from './AppConfigurator.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
@@ -8,6 +9,19 @@ const { toggleMenu, toggleDarkMode, isDarkTheme } = useLayout();
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user ?? null);
+
+// ─── Notifikasi (lonceng + riwayat) ───────────────────────────────────────
+const { items, hasUnread, markRead, markAllRead, relativeTime } = useNotifications();
+const op = ref(null);
+
+function toggleNotif(event) {
+    op.value?.toggle(event);
+}
+
+function onNotifClick(n) {
+    op.value?.hide();
+    markRead(n);
+}
 
 // Foto SIKEP bisa 404; jika gagal muat, kembali ke ikon pi pi-user.
 const triggerImgError = ref(false);
@@ -44,6 +58,41 @@ function logout() {
 
         <div class="layout-topbar-actions">
             <div class="layout-config-menu flex items-center gap-1">
+                <!-- Lonceng notifikasi: titik merah tanpa angka + riwayat yang bisa diklik -->
+                <div class="relative">
+                    <OverlayBadge v-if="hasUnread" severity="danger">
+                        <button type="button" class="layout-topbar-action" @click="toggleNotif" aria-label="Notifikasi">
+                            <i class="pi pi-bell"></i>
+                        </button>
+                    </OverlayBadge>
+                    <button v-else type="button" class="layout-topbar-action" @click="toggleNotif" aria-label="Notifikasi">
+                        <i class="pi pi-bell"></i>
+                    </button>
+
+                    <Popover ref="op">
+                        <div class="w-80">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="font-medium text-surface-900 dark:text-surface-0">Notifikasi</span>
+                                <Button link size="small" label="Tandai semua terbaca" @click="markAllRead" />
+                            </div>
+                            <ul class="max-h-80 overflow-auto">
+                                <li v-for="n in items" :key="n.id">
+                                    <button
+                                        type="button"
+                                        class="w-full text-left p-2 rounded-border hover:bg-surface-100 dark:hover:bg-surface-800"
+                                        :class="{ 'font-semibold': !n.read_at }"
+                                        @click="onNotifClick(n)"
+                                    >
+                                        <div class="text-sm text-surface-900 dark:text-surface-0">{{ n.message }}</div>
+                                        <div class="text-xs text-muted-color">{{ relativeTime(n.created_at) }}</div>
+                                    </button>
+                                </li>
+                                <li v-if="!items.length" class="p-3 text-sm text-muted-color">Belum ada notifikasi.</li>
+                            </ul>
+                        </div>
+                    </Popover>
+                </div>
+
                 <button type="button" class="layout-topbar-action" @click="toggleDarkMode" :aria-label="isDarkTheme ? 'Switch to light mode' : 'Switch to dark mode'">
                     <i :class="['pi', { 'pi-moon': isDarkTheme, 'pi-sun': !isDarkTheme }]"></i>
                 </button>

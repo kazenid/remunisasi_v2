@@ -61,6 +61,16 @@ class User extends Authenticatable
     }
 
     /**
+     * Override relasi notifikasi agar memakai model kustom dengan $dateFormat
+     * mikrodetik (desain §3.1). `unreadNotifications()` dari trait tetap bekerja
+     * terhadap tabel yang sama.
+     */
+    public function notifications()
+    {
+        return $this->morphMany(DatabaseNotification::class, 'notifiable')->latest();
+    }
+
+    /**
      * Set peran sekaligus menjaga invarian role=admin <=> is_admin=true.
      * SATU-SATUNYA jalur tulis `role`/`is_admin` yang hidup (kecuali backfill
      * migrasi & UserFactory state yang menulis kedua kolom berpasangan).

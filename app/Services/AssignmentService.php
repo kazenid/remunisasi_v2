@@ -17,7 +17,10 @@ use InvalidArgumentException;
  */
 class AssignmentService
 {
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly NotificationService $notifier,
+    ) {}
 
     /**
      * @param  array{tanggal:string, kegiatan_id:int, uraian?:?string}  $data
@@ -43,7 +46,7 @@ class AssignmentService
             throw new InvalidArgumentException('Kegiatan yang dipilih tidak valid atau sudah nonaktif.');
         }
 
-        return DB::transaction(function () use ($aktorSikepUserId, $katimkerSikepUserId, $data, $tanggal, $kabidPembina, $kegiatan) {
+        $task = DB::transaction(function () use ($aktorSikepUserId, $katimkerSikepUserId, $data, $tanggal, $kabidPembina, $kegiatan) {
             $period = Period::forDate($tanggal);
 
             $task = TaskReport::create([
@@ -69,5 +72,16 @@ class AssignmentService
 
             return $task;
         });
+
+        // Pasca-commit: beri tahu Katimker ada penugasan baru menunggu bukti.
+        $this->notifier->notify(
+            $katimkerSikepUserId,
+            'task.assigned',
+            'Penugasan baru menunggu bukti.',
+            route('katimker.tugas.show', $task, false),
+            ['task_id' => $task->id],
+        );
+
+        return $task;
     }
 }

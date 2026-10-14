@@ -1,11 +1,19 @@
 <script setup>
 import { useLayout } from '@/layout/composables/layout';
-import { computed } from 'vue';
+import { useNotifications } from '@/composables/useNotifications';
+import { usePage } from '@inertiajs/vue3';
+import { computed, onMounted } from 'vue';
 import AppFooter from '@/layout/AppFooter.vue';
 import AppSidebar from '@/layout/AppSidebar.vue';
 import AppTopbar from '@/layout/AppTopbar.vue';
 
 const { layoutConfig, layoutState, hideMobileMenu } = useLayout();
+
+// Inisialisasi notifikasi realtime SEKALI per sesi SPA. Kepemilikan EventSource
+// ada di scope modul composable (guard initialized); JANGAN teardown di
+// onUnmounted layout — teardown hanya via beforeunload/pagehide (desain §9.3).
+const { init } = useNotifications();
+onMounted(() => init(usePage()));
 
 const containerClass = computed(() => ({
     'layout-overlay':         layoutConfig.menuMode === 'overlay',

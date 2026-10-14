@@ -13,7 +13,10 @@ use Illuminate\Support\Facades\DB;
  */
 class ReviewService
 {
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly NotificationService $notifier,
+    ) {}
 
     /**
      * Daftar tugas berstatus "diajukan" yang menjadi tanggung jawab Kabid ini.
@@ -93,7 +96,7 @@ class ReviewService
             throw new ReviewException('Keterangan wajib diisi bila jam disetujui lebih kecil dari yang diajukan.');
         }
 
-        return DB::transaction(function () use ($task, $durasiDisetujuiMenit, $keterangan, $aktorSikepUserId, $dikurangi, $jenisBaru, $alasanJenis) {
+        $task = DB::transaction(function () use ($task, $durasiDisetujuiMenit, $keterangan, $aktorSikepUserId, $dikurangi, $jenisBaru, $alasanJenis) {
             // Ubah jenis dulu (dalam transaksi yang sama) bila diminta.
             if ($jenisBaru !== null && $jenisBaru !== $task->jenis) {
                 $this->ubahJenis($task, $jenisBaru, (string) $alasanJenis, $aktorSikepUserId);
@@ -117,6 +120,17 @@ class ReviewService
 
             return $task->refresh();
         });
+
+        // Pasca-commit: beri tahu Katimker pemilik bahwa tugasnya disetujui.
+        $this->notifier->notify(
+            $task->katimker_sikep_user_id,
+            'task.approved',
+            'Tugas Anda telah disetujui.',
+            route('katimker.tugas.show', $task, false),
+            ['task_id' => $task->id],
+        );
+
+        return $task;
     }
 
     /**
@@ -126,7 +140,18 @@ class ReviewService
      */
     public function revisi(TaskReport $task, string $keterangan, int $aktorSikepUserId): TaskReport
     {
-        return $this->kembalikan($task, TaskReport::STATUS_REVISI, 'task.revisi', 'Keterangan revisi wajib diisi.', $keterangan, $aktorSikepUserId);
+        $task = $this->kembalikan($task, TaskReport::STATUS_REVISI, 'task.revisi', 'Keterangan revisi wajib diisi.', $keterangan, $aktorSikepUserId);
+
+        // Pasca-commit (kembalikan() sudah commit): beri tahu Katimker pemilik.
+        $this->notifier->notify(
+            $task->katimker_sikep_user_id,
+            'task.revisi',
+            'Tugas Anda diminta untuk direvisi.',
+            route('katimker.tugas.show', $task, false),
+            ['task_id' => $task->id],
+        );
+
+        return $task;
     }
 
     /**
@@ -136,7 +161,18 @@ class ReviewService
      */
     public function reject(TaskReport $task, string $keterangan, int $aktorSikepUserId): TaskReport
     {
-        return $this->kembalikan($task, TaskReport::STATUS_DITOLAK, 'task.reject', 'Keterangan penolakan wajib diisi.', $keterangan, $aktorSikepUserId);
+        $task = $this->kembalikan($task, TaskReport::STATUS_DITOLAK, 'task.reject', 'Keterangan penolakan wajib diisi.', $keterangan, $aktorSikepUserId);
+
+        // Pasca-commit (kembalikan() sudah commit): beri tahu Katimker pemilik.
+        $this->notifier->notify(
+            $task->katimker_sikep_user_id,
+            'task.rejected',
+            'Tugas Anda ditolak.',
+            route('katimker.tugas.show', $task, false),
+            ['task_id' => $task->id],
+        );
+
+        return $task;
     }
 
     private function kembalikan(TaskReport $task, string $status, string $aksi, string $pesanWajib, string $keterangan, int $aktorSikepUserId): TaskReport
