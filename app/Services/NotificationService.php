@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\DatabaseNotification;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
@@ -43,14 +44,27 @@ final class NotificationService
 
         // (b) BEST-EFFORT: sinyal realtime. `url` dibaca ulang dari variabel yang
         //     sama (single-source, §3.2) — jangan panggil route() lagi di sini.
-        $this->publish($sikepUserId, [
-            'id' => $notification->id,
-            'type' => $type,
-            'message' => $message,
-            'url' => $url,
-            'task_id' => $extra['task_id'] ?? null,
-            'created_at' => $notification->created_at->toIso8601String(),
-        ]);
+        $this->publish($sikepUserId, self::signalFor($notification));
+    }
+
+    /**
+     * Bentuk sinyal ringan {id,type,message,url,task_id,created_at}. Dipakai
+     * bersama oleh publish Pub/Sub dan catch-up stream SSE agar payload identik.
+     *
+     * @return array<string,mixed>
+     */
+    public static function signalFor(DatabaseNotification $n): array
+    {
+        $data = $n->data ?? [];
+
+        return [
+            'id' => $n->id,
+            'type' => $data['type'] ?? $n->type,
+            'message' => $data['message'] ?? '',
+            'url' => $data['url'] ?? '',
+            'task_id' => $data['task_id'] ?? null,
+            'created_at' => $n->created_at->toIso8601String(),
+        ];
     }
 
     /**

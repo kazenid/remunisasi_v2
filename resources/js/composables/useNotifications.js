@@ -8,8 +8,15 @@ const hasUnread = ref(false); // status titik merah
 let es = null; // EventSource (dimiliki di scope modul, SURVIVE navigasi)
 let pollTimer = null; // id interval fallback
 let initialized = false; // guard: init() sekali per sesi SPA
+let safetyTimer = null; // id interval safety poll (jaring pengaman walau SSE tampak OPEN)
+let connectGuard = null; // id timeout guard: SSE macet di CONNECTING
+let reconnectTimer = null; // id timeout reopen manual saat EventSource CLOSED
+let signalSeq = 0; // naik tiap sinyal SSE baru; dipakai pollOnce mendeteksi data lebih baru
 
 const POLL_MS = 60000;
+const SAFETY_POLL_MS = 5 * 60 * 1000; // safety poll 5 menit
+const CONNECT_GUARD_MS = 10000; // SSE belum OPEN setelah 10 dtk → nyalakan polling
+const RECONNECT_MS = 15000; // jeda reopen manual saat EventSource CLOSED
 
 // Finding 4: cookie XSRF-TOKEN URL-encoded → wajib decodeURIComponent untuk raw fetch.
 function csrfHeader() {
@@ -21,7 +28,18 @@ function csrfHeader() {
 function openSse() {
     if (es) return; // cegah koneksi ganda
     es = new EventSource(route('notifications.stream'));
-    es.onopen = () => stopPolling(); // SSE tersambung → matikan fallback
+    // Guard "stuck CONNECTING": stream tak kunjung terbuka → polling menyala.
+    clearTimeout(connectGuard);
+    connectGuard = setTimeout(() => {
+        connectGuard = null;
+        if (!es || es.readyState !== EventSource.OPEN) startPolling();
+    }, CONNECT_GUARD_MS);
+    es.onopen = () => {
+        clearTimeout(connectGuard); // SSE tersambung → matikan guard + fallback
+        connectGuard = null;
+        stopPolling();
+        pollOnce(); // catch-up: ambil yang terlewat selama stream terputus
+    };
     es.onmessage = (e) => {
         try {
             handleSignal(JSON.parse(e.data));
@@ -30,18 +48,31 @@ function openSse() {
         }
     };
     es.onerror = () => {
-        // JANGAN close: biarkan EventSource reconnect sendiri. Nyalakan polling sementara.
+        // Nyalakan polling sementara. Selama readyState CONNECTING, EventSource reconnect sendiri.
         startPolling();
+        // CLOSED (mis. respons 502/non-event-stream saat deploy): browser TIDAK akan
+        // reconnect → tutup dan buka ulang manual setelah jeda.
+        if (es && es.readyState === EventSource.CLOSED) {
+            es.close();
+            es = null;
+            if (!reconnectTimer) {
+                reconnectTimer = setTimeout(() => {
+                    reconnectTimer = null;
+                    openSse();
+                }, RECONNECT_MS);
+            }
+        }
     };
 }
 
 function handleSignal(sig) {
-    // 1) titik merah + prepend ke panel (dedup berdasar id)
-    if (!items.value.find((i) => i.id === sig.id)) {
-        items.value.unshift({ ...sig, read_at: null });
-    }
+    // 1) dedup berdasar id: sinyal yang sudah ada tidak memicu efek samping ganda
+    if (items.value.find((i) => i.id === sig.id)) return;
+    signalSeq++;
+    // 2) titik merah + prepend ke panel
+    items.value.unshift({ ...sig, read_at: null });
     hasUnread.value = true;
-    // 2) idle-update konservatif bila halaman relevan
+    // 3) idle-update konservatif bila halaman relevan
     reloadIfRelevant(sig);
 }
 
@@ -95,6 +126,7 @@ function stopPolling() {
 
 async function pollOnce() {
     if (document.hidden) return;
+    const seq = signalSeq; // tangkap sebelum fetch
     try {
         const res = await fetch(route('notifications.index'), {
             headers: { Accept: 'application/json' },
@@ -104,6 +136,7 @@ async function pollOnce() {
         // 302→HTML (admin mid-2FA / sesi kedaluwarsa) → bukan JSON → berhenti diam-diam.
         if (!res.ok || !ct.includes('application/json')) return;
         const data = await res.json();
+        if (seq !== signalSeq) return; // sinyal SSE lebih baru datang saat fetch → jangan timpa
         items.value = data.notifications;
         hasUnread.value = data.has_unread;
     } catch {
@@ -121,6 +154,7 @@ function onVisibilityChange() {
     if (!es) openSse();
     // Jaring pengaman: selama SSE belum OPEN, pastikan polling berjalan.
     if (!es || es.readyState !== EventSource.OPEN) startPolling();
+    pollOnce(); // catch-up setelah tab tersembunyi
 }
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────
@@ -132,6 +166,7 @@ function init(page) {
     hasUnread.value = page?.props?.notifications?.has_unread ?? false;
 
     openSse();
+    if (!safetyTimer) safetyTimer = setInterval(pollOnce, SAFETY_POLL_MS);
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('beforeunload', teardown);
     window.addEventListener('pagehide', teardown);
@@ -144,6 +179,12 @@ function teardown() {
         es = null;
     }
     stopPolling();
+    clearInterval(safetyTimer);
+    safetyTimer = null;
+    clearTimeout(connectGuard);
+    connectGuard = null;
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
     document.removeEventListener('visibilitychange', onVisibilityChange);
     window.removeEventListener('beforeunload', teardown);
     window.removeEventListener('pagehide', teardown);

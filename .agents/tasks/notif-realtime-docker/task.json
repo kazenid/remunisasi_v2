@@ -1,0 +1,7 @@
+{
+  "task_id": "notif-realtime-docker",
+  "task_description": "Perbaiki notifikasi realtime SSE yang tidak jalan di Docker (harus reload): signature callback subscribe salah (akar masalah), celah pesan hilang (catch-up DB + Last-Event-ID), frontend fallback polling, serta konfigurasi Docker/nginx/php-fpm/.dockerignore/README. Rencana lengkap: plan-final.md",
+  "status": "pending",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}

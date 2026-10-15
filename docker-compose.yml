@@ -1,5 +1,10 @@
 services:
   # ─── Application (PHP-FPM 8.4) ─────────────────────────────────────────
+  # MySQL, Redis, dan DB SIKEP TIDAK dijalankan sebagai container.
+  # - MySQL aplikasi  : berjalan di host Linux        → akses via host.docker.internal
+  # - Redis           : berjalan di host Linux        → akses via host.docker.internal
+  # - DB SIKEP (MySQL): berjalan di server LAIN       → akses via IP/host SIKEP_DB_HOST
+  # Semua kredensial & host diambil dari .env (lihat .env.example).
   app:
     build:
       context: .
@@ -7,15 +12,16 @@ services:
     container_name: sakai_app
     restart: unless-stopped
     working_dir: /var/www
+    env_file:
+      - .env
     volumes:
       - sakai_storage:/var/www/storage
     networks:
       - sakai_network
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+    # Memetakan host.docker.internal ke IP gateway host (Linux tidak
+    # menyediakannya secara default seperti Docker Desktop).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - APP_ENV=production
       - APP_DEBUG=false
@@ -36,45 +42,6 @@ services:
     depends_on:
       - app
 
-  # ─── Database (PostgreSQL) ─────────────────────────────────────────────
-  postgres:
-    image: postgres:16-alpine
-    container_name: sakai_postgres
-    restart: unless-stopped
-    ports:
-      - "${DB_PORT:-5432}:5432"
-    environment:
-      POSTGRES_DB: ${DB_DATABASE:-sakai_laravel}
-      POSTGRES_USER: ${DB_USERNAME:-sakai}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
-      POSTGRES_HOST_AUTH_METHOD: md5
-    volumes:
-      - sakai_postgres_data:/var/lib/postgresql/data
-    networks:
-      - sakai_network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-sakai} -d ${DB_DATABASE:-sakai_laravel}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ─── Cache (Redis) ─────────────────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    container_name: sakai_redis
-    restart: unless-stopped
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - sakai_redis_data:/data
-    networks:
-      - sakai_network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # ─── Queue Worker ──────────────────────────────────────────────────────
   queue:
     build:
@@ -82,23 +49,23 @@ services:
       dockerfile: docker/php/Dockerfile
     container_name: sakai_queue
     restart: unless-stopped
+    # Jalan sebagai www-data agar laravel.log di volume bersama tidak dibuat root
+    # (yang akan memblokir tulis oleh php-fpm/www-data).
+    user: www-data
     working_dir: /var/www
     command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
+    env_file:
+      - .env
     volumes:
       - sakai_storage:/var/www/storage
     networks:
       - sakai_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - app
 
 volumes:
-  sakai_postgres_data:
-    driver: local
-  sakai_redis_data:
-    driver: local
   sakai_storage:
     driver: local
 

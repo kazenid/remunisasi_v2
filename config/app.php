@@ -123,4 +123,17 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Heartbeat SSE Notifikasi
+    |--------------------------------------------------------------------------
+    |
+    | Interval (detik) pengiriman komentar `: ping` pada stream SSE notifikasi
+    | agar koneksi tidak dianggap idle oleh proxy dan abort klien terdeteksi.
+    | Dipisah dari config database.redis agar tidak tercampur dengan read
+    | timeout klien phpredis.
+    |
+    */
+    'sse_heartbeat' => (int) env('SSE_HEARTBEAT_SECONDS', 20),
+
 ];

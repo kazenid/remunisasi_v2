@@ -213,8 +213,11 @@ return [
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_NOTIFY_DB', '2'),
-            // Sumber nilai $hb heartbeat loop SSE (§6.2); read-timeout raw client tetap 1 dtk.
-            'read_timeout' => env('SSE_HEARTBEAT_SECONDS', 20),
+            // Connect timeout (dtk) dan read timeout klien (dtk) agar publish() di request
+            // submit/review tidak menahan request lama. Stream SSE menimpa read timeout-nya
+            // sendiri via OPT_READ_TIMEOUT; interval heartbeat ada di config('app.sse_heartbeat').
+            'timeout' => 2,
+            'read_timeout' => 3,
             // Kosongkan prefix agar nama channel pub/sub literal `notif.user.{id}`
             // (menimpa prefix global `{app-slug}-database-`). Finding 2.
             'options' => ['prefix' => ''],

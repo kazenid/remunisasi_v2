@@ -11,24 +11,28 @@ RUN apk add --no-cache \
     curl \
     libpng-dev \
     libxml2-dev \
-    libpq-dev \
+    libzip-dev \
     zip \
     unzip \
     oniguruma-dev \
     nodejs \
     npm
 
-# Install PHP extensions
+# Install PHP extensions (MySQL + phpredis untuk pub/sub notifikasi SSE)
 RUN docker-php-ext-install \
     pdo \
-    pdo_pgsql \
-    pgsql \
+    pdo_mysql \
     mbstring \
     exif \
     pcntl \
     bcmath \
     gd \
-    opcache
+    zip \
+    opcache \
+ && apk add --no-cache --virtual .phpize-deps $PHPIZE_DEPS \
+ && pecl install redis \
+ && docker-php-ext-enable redis \
+ && apk del .phpize-deps
 
 # Nonaktifkan OPcache validate_timestamps di dev agar tidak perlu restart
 RUN { \
@@ -41,6 +45,10 @@ RUN { \
 
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+# Pool php-fpm kustom: listen di 0.0.0.0:9000 agar dapat dijangkau nginx
+# (container lain), plus kapasitas untuk koneksi SSE berumur panjang.
+COPY docker/php/php-fpm.conf /usr/local/etc/php-fpm.d/www.conf
 
 WORKDIR /var/www
 

@@ -17,7 +17,8 @@ use Tests\TestCase;
  * Notifikasi realtime: pembuatan baris untuk penerima yang benar (resolusi
  * via sikep_user_id), mark-read/all + otorisasi, shared prop has_unread, dan
  * ketahanan saat user lokal penerima tidak ada. Jalur SSE/Redis diuji manual
- * (desain §12.3) — publish best-effort tidak hard-fail tanpa Redis.
+ * (desain §12.3) — publish best-effort tidak hard-fail tanpa Redis. Stream SSE
+ * (callback subscribe, catch-up, dedup) diuji di NotificationStreamTest.
  */
 class NotificationTest extends TestCase
 {

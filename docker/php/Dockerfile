@@ -1,5 +1,18 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Stage 1: Node builder — install all deps & build frontend assets
+# Stage 1: Ziggy — hanya untuk menyediakan vendor/tightenco/ziggy bagi build Vite
+# (resources/js/app.js mengimpor '../../vendor/tightenco/ziggy'; vendor/ host
+# dikecualikan oleh .dockerignore). Layer ter-cache selama composer.* tak berubah.
+# ─────────────────────────────────────────────────────────────────────────────
+FROM composer:2 AS ziggy
+
+WORKDIR /app
+
+COPY composer.json composer.lock ./
+
+RUN composer install --no-dev --no-interaction --no-scripts --no-autoloader --ignore-platform-reqs
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 2: Node builder — install all deps & build frontend assets
 # ─────────────────────────────────────────────────────────────────────────────
 FROM node:22-alpine AS node_builder
 
@@ -11,16 +24,22 @@ COPY package.json package-lock.json ./
 # Install ALL node deps (including devDependencies needed for Vite build)
 RUN npm ci
 
+# Ziggy (diimpor oleh resources/js/app.js)
+COPY --from=ziggy /app/vendor/tightenco/ziggy ./vendor/tightenco/ziggy
+
 # Copy source files needed for build
 COPY vite.config.js ./
 COPY resources/ ./resources/
 COPY public/ ./public/
 
+# Pastikan file dev-server Vite tidak ikut ke image
+RUN rm -f public/hot
+
 # Build frontend assets
 RUN npm run build
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Stage 2: PHP — runtime image
+# Stage 3: PHP — runtime image
 # ─────────────────────────────────────────────────────────────────────────────
 FROM php:8.4-fpm-alpine
 
@@ -31,22 +50,26 @@ RUN apk add --no-cache \
     curl \
     libpng-dev \
     libxml2-dev \
-    libpq-dev \
+    libzip-dev \
     zip \
     unzip \
     oniguruma-dev
 
-# Install PHP extensions
+# Install PHP extensions (MySQL + phpredis untuk pub/sub notifikasi SSE)
 RUN docker-php-ext-install \
     pdo \
-    pdo_pgsql \
-    pgsql \
+    pdo_mysql \
     mbstring \
     exif \
     pcntl \
     bcmath \
     gd \
-    opcache
+    zip \
+    opcache \
+ && apk add --no-cache --virtual .phpize-deps $PHPIZE_DEPS \
+ && pecl install redis \
+ && docker-php-ext-enable redis \
+ && apk del .phpize-deps
 
 # Configure OPcache for production
 RUN { \
@@ -78,6 +101,11 @@ COPY --from=node_builder /app/public/build ./public/build
 
 # Finalize composer (run post-install scripts, dump autoload)
 RUN composer dump-autoload --optimize
+
+# public/hot (dev server Vite) tidak boleh ada di image; kerangka storage &
+# bootstrap/cache dipastikan ada (named volume sakai_storage diinisialisasi dari sini)
+RUN rm -f public/hot \
+    && mkdir -p storage/app/public storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache
 
 # Set correct permissions
 RUN chown -R www-data:www-data /var/www \

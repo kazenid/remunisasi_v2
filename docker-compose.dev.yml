@@ -14,9 +14,22 @@ services:
       - "9000:9000"
     networks:
       - sakai_network
+    # Override koneksi: DB app + SIKEP di MySQL HOST Windows (via host.docker.internal),
+    # Redis tetap di container. `.env` lokal tidak disentuh (dipakai saat artisan serve Windows).
+    environment:
+      DB_HOST: host.docker.internal
+      DB_PORT: 3306
+      DB_DATABASE: remunisasi_v2
+      DB_USERNAME: root
+      DB_PASSWORD: ""
+      SIKEP_DB_HOST: host.docker.internal
+      SIKEP_DB_PORT: 3306
+      SIKEP_DB_DATABASE: bangil_kepegawaian
+      SIKEP_DB_USERNAME: root
+      SIKEP_DB_PASSWORD: ""
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     command: sh -c "chmod -R 777 storage bootstrap/cache && composer install --no-interaction && php-fpm"
@@ -35,6 +48,19 @@ services:
       - "5173:5173"
     networks:
       - sakai_network
+    environment:
+      DB_HOST: host.docker.internal
+      DB_PORT: 3306
+      DB_DATABASE: remunisasi_v2
+      DB_USERNAME: root
+      DB_PASSWORD: ""
+      SIKEP_DB_HOST: host.docker.internal
+      SIKEP_DB_PORT: 3306
+      SIKEP_DB_DATABASE: bangil_kepegawaian
+      SIKEP_DB_USERNAME: root
+      SIKEP_DB_PASSWORD: ""
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
       - app
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
@@ -43,8 +69,9 @@ services:
   nginx:
     image: nginx:1.25-alpine
     container_name: sakai_nginx_dev
+    # Port host 8085 (8000 sudah ditempati Apache/XAMPP di Windows host).
     ports:
-      - "8000:80"
+      - "8085:80"
     volumes:
       - .:/var/www
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
@@ -53,33 +80,37 @@ services:
     depends_on:
       - app
 
-  # ─── Database (PostgreSQL 16) ──────────────────────────────────────────────
-  postgres:
-    image: postgres:16-alpine
-    container_name: sakai_postgres_dev
+  # ─── Database (MySQL 8) ────────────────────────────────────────────────────
+  # Dev memakai MySQL dalam container agar `up` langsung jalan tanpa setup host.
+  # Di PRODUKSI, MySQL berjalan di host Linux (lihat docker-compose.yml).
+  mysql:
+    image: mysql:8.0
+    container_name: sakai_mysql_dev
     ports:
-      - "5433:5432"
+      - "3307:3306"
     environment:
-      POSTGRES_DB: sakai_laravel
-      POSTGRES_USER: sakai
-      POSTGRES_PASSWORD: secret
-      POSTGRES_HOST_AUTH_METHOD: md5
+      MYSQL_DATABASE: remunisasi_v2
+      MYSQL_USER: sakai
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: secret
     volumes:
-      - sakai_postgres_dev_data:/var/lib/postgresql/data
+      - sakai_mysql_dev_data:/var/lib/mysql
     networks:
       - sakai_network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U sakai -d sakai_laravel" ]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-psecret"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   # ─── Cache (Redis 7) ───────────────────────────────────────────────────────
+  # Port host 6380 (6379 sudah dipakai container proyek lain). Komunikasi
+  # antar-container tetap lewat `redis:6379` di jaringan internal.
   redis:
     image: redis:7-alpine
     container_name: sakai_redis_dev
     ports:
-      - "6379:6379"
+      - "6380:6379"
     networks:
       - sakai_network
     healthcheck:
@@ -89,7 +120,7 @@ services:
       retries: 3
 
 volumes:
-  sakai_postgres_dev_data:
+  sakai_mysql_dev_data:
   sakai_vendor_dev:
   sakai_node_modules_dev:
 

@@ -1,0 +1,14 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "id": 1,
+      "severity": "NIT",
+      "title": "Redis::purge() on rebuild unsets the cached connection but does not close the discarded socket; note GC/destruct handling",
+      "location": "design.md \u00a76.2 $connect() helper (Redis::purge('notifications') -> Redis::connection('notifications'))",
+      "problem": "Verified Illuminate\\Redis\\RedisManager::purge($name) is only unset($this->connections[$name]); it removes the manager's cached reference but does not call disconnect()/close() on the previous Connection/raw client. In the design's closure the old $connection/$client are overwritten by the rebuilt pair, so the previous objects become unreferenced and phpredis closes the socket on __destruct. Correct in practice, but on an idle connection the rebuild runs ~once per OPT_READ_TIMEOUT second, so for a brief window two sockets can coexist until GC runs. The design asserts a 'clean new socket' without stating the old socket is released by destruct rather than by an explicit close.",
+      "fix": "Add one sentence to \u00a76.2: Redis::purge() only drops the cached reference; the old connection's socket is closed when the prior Connection/raw client is no longer referenced (phpredis destruct); no explicit close() is needed on the rebuild path because $connection/$client are immediately overwritten, and finally still closes the last active socket once. Optionally, for determinism, call try { $client->close(); } catch (\\Throwable) {} immediately before Redis::purge() when $client is already set."
+    }
+  ],
+  "reviewDoc": "f:\\LARAVEL\\remunisasi_v2\\.agents\\tasks\\notif-realtime-sse\\design-review.md"
+}
