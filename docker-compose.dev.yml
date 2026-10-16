@@ -61,6 +61,9 @@ services:
       SIKEP_DB_PASSWORD: ""
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      # Bind mount Windows tidak mengirim event inotify -> pakai polling agar
+      # perubahan berkas terdeteksi (tanpa ini Vite menyajikan modul basi).
+      VITE_USE_POLLING: "true"
     depends_on:
       - app
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0"

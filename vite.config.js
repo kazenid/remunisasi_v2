@@ -16,6 +16,12 @@ export default defineConfig({
         hmr: {
             host: 'localhost',
         },
+        // Docker Desktop (Windows) tidak meneruskan event inotify dari bind mount,
+        // jadi perubahan berkas tidak terdeteksi. Aktif hanya lewat env compose dev.
+        watch: {
+            usePolling: process.env.VITE_USE_POLLING === 'true',
+            interval: 300,
+        },
     },
     plugins: [
         laravel({

@@ -2,7 +2,7 @@
 import GuestLayout from '@/Layouts/GuestLayout.vue';
 import FloatingConfigurator from '@/Components/FloatingConfigurator.vue';
 import { Head, useForm } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { asset } from '@/composables/useAsset.js';
 
 defineOptions({ layout: GuestLayout });
