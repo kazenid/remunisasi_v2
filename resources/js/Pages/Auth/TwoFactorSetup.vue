@@ -4,6 +4,7 @@ import FloatingConfigurator from '@/Components/FloatingConfigurator.vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { useToast } from 'primevue/usetoast';
 import { computed } from 'vue';
+import { asset } from '@/composables/useAsset.js';
 
 defineOptions({ layout: GuestLayout });
 
@@ -88,7 +89,7 @@ function keluar() {
 
             <div class="flex flex-col items-center text-center mb-8">
                 <div class="inline-flex items-center justify-center mb-5 p-4 bg-surface-0 dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 shadow-sm">
-                    <img src="/images/logo_rsud_bangil.png" alt="Logo RSUD Bangil" class="h-14 w-auto" />
+                    <img :src="asset('images/logo_rsud_bangil.png')" alt="Logo RSUD Bangil" class="h-14 w-auto" />
                 </div>
                 <h2 class="text-surface-900 dark:text-surface-0 text-3xl font-semibold mb-2">
                     {{ faseRecovery ? 'Simpan Kode Pemulihan' : 'Aktifkan Verifikasi Dua Langkah' }}

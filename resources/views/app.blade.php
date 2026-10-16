@@ -9,8 +9,8 @@
         <title inertia>{{ config('app.name', 'TUKIMAN') }}</title>
 
         {{-- Favicon --}}
-        <link rel="icon" type="image/png" href="/images/logo_rsud_bangil.png">
-        <link rel="apple-touch-icon" href="/images/logo_rsud_bangil.png">
+        <link rel="icon" type="image/png" href="{{ asset('images/logo_rsud_bangil.png') }}">
+        <link rel="apple-touch-icon" href="{{ asset('images/logo_rsud_bangil.png') }}">
 
         {{-- Fonts --}}
         <link rel="preconnect" href="https://fonts.googleapis.com">

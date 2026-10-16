@@ -4,6 +4,7 @@ import { useNotifications } from '@/composables/useNotifications';
 import AppConfigurator from './AppConfigurator.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import { asset } from '@/composables/useAsset.js';
 
 const { toggleMenu, toggleDarkMode, isDarkTheme } = useLayout();
 
@@ -50,8 +51,8 @@ function logout() {
             <button class="layout-menu-button layout-topbar-action" @click="toggleMenu" aria-label="Toggle sidebar">
                 <i class="pi pi-bars"></i>
             </button>
-            <Link href="/" class="layout-topbar-logo">
-                <img src="/images/logo_rsud_bangil.png" alt="Logo RSUD Bangil" />
+            <Link :href="route('dashboard')" class="layout-topbar-logo">
+                <img :src="asset('images/logo_rsud_bangil.png')" alt="Logo RSUD Bangil" />
                 <span>TUKIMAN</span>
             </Link>
         </div>
