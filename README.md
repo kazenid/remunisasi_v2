@@ -425,10 +425,14 @@ Jalankan `make` (atau `make help`) untuk melihat daftar target. Variabel: `DC_DE
 
 **`/sse/notifications` mengembalikan 500 di build produksi lokal.** Biasanya `.env` masih menunjuk DB `127.0.0.1` (dari mesin dev) sehingga membaca tabel `sessions` gagal di dalam container. Gunakan `.env` produksi yang benar (`DB_HOST=host.docker.internal`).
 
-**Halaman putih / blank setelah login.**
+**Halaman putih / blank (stack dev Docker atau lokal).**
+1. Buka DevTools (F12) > Console. Layar putih pada Inertia/Vue hampir selalu berarti error JavaScript (mis. `ref is not defined` bila `import { ref } from 'vue'` terlewat di `<script setup>`; Vue tidak melakukan auto-import). Perbaiki di berkas yang disebut error.
+2. Pastikan Vite hidup dan dapat dijangkau browser: `make dev-logs SERVICE=vite` (harus ada "ready"), lalu buka `http://localhost:5173/@vite/client` (harus 200).
+3. Di Docker Desktop (Windows), bind mount tidak meneruskan event perubahan berkas. `docker-compose.dev.yml` mengaktifkan polling Vite (`VITE_USE_POLLING=true`) agar edit terdeteksi; tanpa itu Vite dapat menyajikan modul lama yang sudah rusak sampai container di-restart (`docker compose -f docker-compose.dev.yml up -d vite`).
+4. Bersihkan cache Laravel bila perlu:
 ```bash
 php artisan optimize:clear
-npm run dev     # pastikan Vite berjalan saat pengembangan lokal
+npm run dev     # hanya untuk pengembangan lokal tanpa Docker
 ```
 
 **`Route [xxx] not defined`.** Ziggy atau cache route belum termuat ulang:
