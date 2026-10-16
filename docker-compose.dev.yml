@@ -4,16 +4,16 @@ services:
     build:
       context: .
       dockerfile: docker/php/Dockerfile.dev
-    container_name: sakai_app_dev
+    container_name: tukiman_app_dev
     working_dir: /var/www
     volumes:
       - .:/var/www
-      - sakai_vendor_dev:/var/www/vendor
-      - sakai_node_modules_dev:/var/www/node_modules
+      - tukiman_vendor_dev:/var/www/vendor
+      - tukiman_node_modules_dev:/var/www/node_modules
     ports:
       - "9000:9000"
     networks:
-      - sakai_network
+      - tukiman_network
     # Override koneksi: DB app + SIKEP di MySQL HOST Windows (via host.docker.internal),
     # Redis tetap di container. `.env` lokal tidak disentuh (dipakai saat artisan serve Windows).
     environment:
@@ -39,15 +39,15 @@ services:
     build:
       context: .
       dockerfile: docker/php/Dockerfile.dev
-    container_name: sakai_vite_dev
+    container_name: tukiman_vite_dev
     working_dir: /var/www
     volumes:
       - .:/var/www
-      - sakai_node_modules_dev:/var/www/node_modules
+      - tukiman_node_modules_dev:/var/www/node_modules
     ports:
       - "5173:5173"
     networks:
-      - sakai_network
+      - tukiman_network
     environment:
       DB_HOST: host.docker.internal
       DB_PORT: 3306
@@ -68,7 +68,7 @@ services:
   # ─── Web Server (Nginx) ────────────────────────────────────────────────────
   nginx:
     image: nginx:1.25-alpine
-    container_name: sakai_nginx_dev
+    container_name: tukiman_nginx_dev
     # Port host 8085 (8000 sudah ditempati Apache/XAMPP di Windows host).
     ports:
       - "8085:80"
@@ -76,7 +76,7 @@ services:
       - .:/var/www
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
-      - sakai_network
+      - tukiman_network
     depends_on:
       - app
 
@@ -85,18 +85,18 @@ services:
   # Di PRODUKSI, MySQL berjalan di host Linux (lihat docker-compose.yml).
   mysql:
     image: mysql:8.0
-    container_name: sakai_mysql_dev
+    container_name: tukiman_mysql_dev
     ports:
       - "3307:3306"
     environment:
       MYSQL_DATABASE: remunisasi_v2
-      MYSQL_USER: sakai
+      MYSQL_USER: tukiman
       MYSQL_PASSWORD: secret
       MYSQL_ROOT_PASSWORD: secret
     volumes:
-      - sakai_mysql_dev_data:/var/lib/mysql
+      - tukiman_mysql_dev_data:/var/lib/mysql
     networks:
-      - sakai_network
+      - tukiman_network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-psecret"]
       interval: 10s
@@ -108,11 +108,11 @@ services:
   # antar-container tetap lewat `redis:6379` di jaringan internal.
   redis:
     image: redis:7-alpine
-    container_name: sakai_redis_dev
+    container_name: tukiman_redis_dev
     ports:
       - "6380:6379"
     networks:
-      - sakai_network
+      - tukiman_network
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
@@ -120,10 +120,10 @@ services:
       retries: 3
 
 volumes:
-  sakai_mysql_dev_data:
-  sakai_vendor_dev:
-  sakai_node_modules_dev:
+  tukiman_mysql_dev_data:
+  tukiman_vendor_dev:
+  tukiman_node_modules_dev:
 
 networks:
-  sakai_network:
+  tukiman_network:
     driver: bridge
