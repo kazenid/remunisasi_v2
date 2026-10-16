@@ -9,15 +9,15 @@ services:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
-    container_name: sakai_app
+    container_name: tukiman_app
     restart: unless-stopped
     working_dir: /var/www
     env_file:
       - .env
     volumes:
-      - sakai_storage:/var/www/storage
+      - tukiman_storage:/var/www/storage
     networks:
-      - sakai_network
+      - tukiman_network
     # Memetakan host.docker.internal ke IP gateway host (Linux tidak
     # menyediakannya secara default seperti Docker Desktop).
     extra_hosts:
@@ -31,14 +31,14 @@ services:
     build:
       context: .
       dockerfile: docker/nginx/Dockerfile
-    container_name: sakai_nginx
+    container_name: tukiman_nginx
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8000}:80"
     volumes:
-      - sakai_storage:/var/www/storage:ro # Read-only access to storage for symlinked public assets
+      - tukiman_storage:/var/www/storage:ro # Read-only access to storage for symlinked public assets
     networks:
-      - sakai_network
+      - tukiman_network
     depends_on:
       - app
 
@@ -47,7 +47,7 @@ services:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
-    container_name: sakai_queue
+    container_name: tukiman_queue
     restart: unless-stopped
     # Jalan sebagai www-data agar laravel.log di volume bersama tidak dibuat root
     # (yang akan memblokir tulis oleh php-fpm/www-data).
@@ -57,18 +57,18 @@ services:
     env_file:
       - .env
     volumes:
-      - sakai_storage:/var/www/storage
+      - tukiman_storage:/var/www/storage
     networks:
-      - sakai_network
+      - tukiman_network
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
       - app
 
 volumes:
-  sakai_storage:
+  tukiman_storage:
     driver: local
 
 networks:
-  sakai_network:
+  tukiman_network:
     driver: bridge
